@@ -49,7 +49,7 @@ class RAGSystem:
 
     def ask(self, question: str):
         # RAG 流程
-        template = """僅根據以下提供的背景資訊來回答問題，若背景資訊不足以回答，請直接說明。
+        template = """僅根據以下提供的背景資訊來回答問題，若背景資訊不足以回答，請直接說明。另回答時請都使用繁體中文回覆。
         <context>
         {context}
         </context>
