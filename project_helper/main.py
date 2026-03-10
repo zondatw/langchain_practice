@@ -74,7 +74,7 @@ class RustProjectAssistant:
 
     def ask(self, question: str):
         template = """你是一個專業的 Rust 開發助手。請根據以下專案背景（原始碼或文件）回答問題。
-        若資訊不足以回答，請說明。回答時請引用檔案路徑並解釋邏輯。
+        若資訊不足以回答，請說明。回答時請引用檔案路徑並解釋邏輯。請用繁體中文回答
 
         <context>
         {context}
