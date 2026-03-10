@@ -1,9 +1,7 @@
 import os
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import ChatOllama
-from langchain_community.vectorstores import Chroma
-from langchain_community.document_loaders.generic import GenericLoader
-from langchain_community.document_loaders.parsers import LanguageParser
+from langchain_chroma import Chroma
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
@@ -48,12 +46,6 @@ class RustProjectAssistant:
             language=Language.RUST, chunk_size=1000, chunk_overlap=100
         )
         all_docs.extend(rs_splitter.split_documents(loader_rs.load()))
-
-        # 2. 處理 Markdown (保持不變)
-        print("--- [Step 2/2] 正在處理 Markdown 檔案 (.md) ---")
-        loader_md = DirectoryLoader(self.project_path, glob="**/*.md", loader_cls=TextLoader)
-        md_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=80)
-        all_docs.extend(md_splitter.split_documents(loader_md.load()))
 
         # 2. 解析 Markdown 文件 (.md)
         print("--- [Step 2/2] 正在處理 Markdown 檔案 (.md) ---")
