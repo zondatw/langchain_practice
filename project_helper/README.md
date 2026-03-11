@@ -1,6 +1,14 @@
 # project helper
 
-## Output
+## Web
+
+`uv run web.py`
+
+![](../readme_pictures/project_helper_web.png)  
+
+## Shell
+
+`uv run main.py`
 
 ```text
 --- 初始化本地 Embedding 模型 (all-MiniLM-L6-v2) ---
