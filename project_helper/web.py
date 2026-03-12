@@ -1,35 +1,58 @@
 import gradio as gr
+import os
 from assistant import RustProjectAssistant
 
 def create_gr(assistant: RustProjectAssistant):
-    # --- Gradio 內部邏輯 ---
     def chat_response(message, history):
-        """
-        message: 使用者輸入的文字
-        history: 對話歷史 (Gradio 會自動處理)
-        """
+        # 處理 Gradio 的 history 格式並回傳答案
         return assistant.ask(message)
 
-    # 使用 Blocks 來包裹介面，這是目前設定主題最標準的做法
-    with gr.Blocks(theme="soft") as demo:
-        gr.Markdown("# 🦀 Magic-Pack Rust 助手")
-        gr.Markdown("輸入任何關於 magic-pack 專案的問題，我會幫你分析原始碼與文件。")
+    # 這裡只處理佈局
+    with gr.Blocks() as demo:
+        gr.Markdown("# 🦀 Magic-Pack Rust 專案助手")
         
-        gr.ChatInterface(
-            fn=chat_response,
-            examples=["這個專案的核心功能是什麼？", "請解釋 magic-pack 如何處理錯誤？", "如何安裝這個專案？"],
-        )
+        with gr.Row():
+            # 左側：聊天視窗
+            with gr.Column(scale=3):
+                gr.ChatInterface(
+                    fn=chat_response,
+                    examples=["這個專案的核心功能是什麼？", "請解釋 magic-pack 如何處理錯誤？"],
+                )
+            
+            # 右側：專案資訊
+            with gr.Column(scale=1):
+                gr.Markdown("### 📂 已索引檔案")
+                files = assistant.get_indexed_files()
+                if files:
+                    # 僅顯示檔名，增加可讀性
+                    file_list_md = "\n".join([f"- `{os.path.basename(f)}`" for f in files])
+                    gr.Markdown(file_list_md)
+                else:
+                    gr.Markdown("*目前無索引資料*")
+                
+                gr.Markdown("---")
+                gr.Markdown("### ⚙️ 系統狀態")
+                gr.Markdown("**模型:** `Llama3`\n\n**向量庫:** `ChromaDB`")
+                
+                # 預留按鈕
+                re_scan_btn = gr.Button("重新掃描專案", variant="secondary")
+                
     return demo
 
 if __name__ == "__main__":
-    # 配置路徑
     PROJECT_PATH = "~/Repos/magic-pack"
     
     print("--- 正在初始化後端助手 ---")
     assistant = RustProjectAssistant(project_path=PROJECT_PATH)
     
-    # 建立介面
-    demo = create_gr(assistant=assistant)
+    # 建立介面實例
+    app = create_gr(assistant=assistant)
     
     print("--- 正在啟動 Gradio 伺服器 (http://localhost:7860) ---")
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    
+    # 移除 window_title，僅保留最基本的 server 設定與 theme
+    app.launch(
+        server_name="0.0.0.0", 
+        server_port=7860,
+        theme="soft" 
+    )

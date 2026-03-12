@@ -72,6 +72,17 @@ class RustProjectAssistant:
             persist_directory=self.persist_directory
         )
 
+    def get_indexed_files(self):
+        """獲取目前向量資料庫中所有來源檔案的清單 (去重複)"""
+        if not self.vectorstore:
+            return []
+        # 從 metadata 中提取 source
+        data = self.vectorstore.get()
+        sources = set()
+        for metadata in data['metadatas']:
+            sources.add(metadata.get('source', 'unknown'))
+        return sorted(list(sources))
+
     def ask(self, question: str):
         template = """你是一個專業的 Rust 開發助手。請根據以下專案背景（原始碼或文件）回答問題。
         若資訊不足以回答，請說明。回答時請引用檔案路徑並解釋邏輯。請用繁體中文回答
