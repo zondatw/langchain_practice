@@ -9,5 +9,8 @@ wheels/
 # Virtual environments
 .venv
 
+# mac
+.DS_Store
+
 chroma_db
 qdrant_db
