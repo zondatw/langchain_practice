@@ -3,7 +3,7 @@ import logging
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import ChatOllama
 from langchain_chroma import Chroma
-from langchain_qdrant import QdrantVectorStore
+from langchain_qdrant import QdrantVectorStore, RetrievalMode, FastEmbedSparse
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
@@ -41,10 +41,13 @@ class RustProjectAssistant:
         if db_type == "Chroma":
             return Chroma(persist_directory=path, embedding_function=self.embeddings)
         else:
+            sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
             return QdrantVectorStore.from_existing_collection(
                 embedding=self.embeddings,
+                sparse_embedding=sparse_embeddings,
                 path=path,
-                collection_name=self.collection_name
+                collection_name=self.collection_name,
+                retrieval_mode=RetrievalMode.HYBRID,
             )
 
     def _build_index(self, db_type):
@@ -92,8 +95,14 @@ class RustProjectAssistant:
         if db_type == "Chroma":
             vs = Chroma.from_documents(all_docs, self.embeddings, persist_directory=path)
         else:
+            sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
             vs = QdrantVectorStore.from_documents(
-                all_docs, self.embeddings, path=path, collection_name=self.collection_name
+                all_docs,
+                embedding=self.embeddings,
+                sparse_embedding=sparse_embeddings,
+                path=path,
+                collection_name=self.collection_name,
+                retrieval_mode=RetrievalMode.HYBRID,
             )
         
         logger.info(f"{db_type} 索引建立成功並持久化至 {path}")

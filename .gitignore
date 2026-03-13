@@ -12,5 +12,9 @@ wheels/
 # mac
 .DS_Store
 
+# db
 chroma_db
 qdrant_db
+
+# eval result
+eval_results.json
