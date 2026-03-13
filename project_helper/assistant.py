@@ -1,4 +1,5 @@
 import os
+import logging
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import ChatOllama
 from langchain_chroma import Chroma
@@ -6,6 +7,17 @@ from langchain_qdrant import QdrantVectorStore
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("huggingface_hub").setLevel(logging.WARNING) # 順便關閉 HF 的檢查訊息
+
+logger = logging.getLogger("RustAssistant")
 
 class RustProjectAssistant:
     def __init__(self, project_path="~/Repos/magic-pack"):
@@ -17,12 +29,15 @@ class RustProjectAssistant:
             "Qdrant": "./qdrant_db"
         }
         self.collection_name = "magic_pack"
+        logger.info(f"助手初始化完成，專案路徑: {self.project_path}")
 
     def _get_vectorstore(self, db_type):
         path = self.db_paths[db_type]
         if not os.path.exists(path) or not os.listdir(path):
+            logger.warning(f"{db_type} 索引不存在或為空，準備觸發重新索引...")
             return self._build_index(db_type)
 
+        logger.info(f"載入現有 {db_type} 向量資料庫")
         if db_type == "Chroma":
             return Chroma(persist_directory=path, embedding_function=self.embeddings)
         else:
@@ -33,11 +48,13 @@ class RustProjectAssistant:
             )
 
     def _build_index(self, db_type):
-        print(f"--- 正在為 {db_type} 建立新索引 (3.13 相容模式) ---")
+        logger.info(f"開始為 {db_type} 建立新索引 (3.13 相容模式)")
         all_docs = []
 
         exclude_dirs = ["/target/", "/.git/", "/.cargo/"]
+        
         def load_and_filter(glob_pattern):
+            logger.debug(f"正在使用 Pattern '{glob_pattern}' 載入檔案...")
             loader = DirectoryLoader(
                 self.project_path,
                 glob=glob_pattern,
@@ -50,32 +67,37 @@ class RustProjectAssistant:
             ]
             return filtered_docs
 
-        print("--- [Step 1/2] 正在處理 Rust 檔案 (.rs) ---")
+        # 處理 Rust 檔案
+        logger.info("正在處理 Rust 檔案 (.rs)")
         rs_splitter = RecursiveCharacterTextSplitter.from_language(
             language=Language.RUST, chunk_size=1000, chunk_overlap=100
         )
-        rs_docs = rs_splitter.split_documents(load_and_filter("**/*.rs"))
+        filtered_rs = load_and_filter("**/*.rs")
+        rs_docs = rs_splitter.split_documents(filtered_rs)
         all_docs.extend(rs_docs)
 
         sources = set(d.metadata['source'] for d in rs_docs)
-        print(f"共載入 {len(rs_docs)} 個片段，來自 {len(sources)} 個檔案")
+        logger.info(f"Rust 檔案處理完成: {len(rs_docs)} 片段，來自 {len(sources)} 個檔案")
         for s in sorted(sources):
-            print(s)
+            logger.debug(f"已索引 Rust 檔案: {s}")
 
-        print("--- [Step 2/2] 正在處理 Markdown 檔案 (.md) ---")
-        md_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=800, 
-            chunk_overlap=80
-        )
-        all_docs.extend(md_splitter.split_documents(load_and_filter("**/*.md")))
+        # 處理 Markdown 檔案
+        logger.info("正在處理 Markdown 檔案 (.md)")
+        md_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=80)
+        md_docs = md_splitter.split_documents(load_and_filter("**/*.md"))
+        all_docs.extend(md_docs)
+        logger.info(f"Markdown 檔案處理完成: {len(md_docs)} 片段")
         
         path = self.db_paths[db_type]
         if db_type == "Chroma":
-            return Chroma.from_documents(all_docs, self.embeddings, persist_directory=path)
+            vs = Chroma.from_documents(all_docs, self.embeddings, persist_directory=path)
         else:
-            return QdrantVectorStore.from_documents(
+            vs = QdrantVectorStore.from_documents(
                 all_docs, self.embeddings, path=path, collection_name=self.collection_name
             )
+        
+        logger.info(f"{db_type} 索引建立成功並持久化至 {path}")
+        return vs
 
     def get_indexed_files(self, db_type="Chroma"):
         try:
@@ -100,18 +122,20 @@ class RustProjectAssistant:
             
             return sorted(list(set(s for s in sources if s)))
         except Exception as e:
-            print(f"Error getting files: {e}")
+            logger.error(f"從 {db_type} 獲取檔案清單失敗: {e}", exc_info=True)
             return []
 
     def _translate_to_english(self, question: str) -> str:
+        logger.debug(f"正在翻譯使用者問題: {question}")
         response = self.model.invoke(
             f"Translate the following to English, output only the translation:\n{question}"
         )
-        return response.content
+        translated = response.content.strip()
+        logger.info(f"翻譯完成: {translated}")
+        return translated
 
     def ask(self, question: str, db_type="Chroma"):
         english_question = self._translate_to_english(question)
-        print(f"Translated query: {english_question}")
 
         template = """
         你是一個專業的 Rust 開發助手。請根據以下專案背景（原始碼或文件）回答問題。
@@ -128,14 +152,18 @@ class RustProjectAssistant:
         vs = self._get_vectorstore(db_type)
         retriever = vs.as_retriever(search_kwargs={"k": 5})
 
-        # 檢索與組合 Context
+        logger.info(f"正在從 {db_type} 檢索相關片段...")
         context_docs = retriever.invoke(english_question)
+
         context_text = ""
         for i, doc in enumerate(context_docs):
             source = doc.metadata.get('source', '未知來源')
             context_text += f"--- 片段 {i+1} (來源: {source}) ---\n{doc.page_content}\n\n"
-        print("---context_text---")
-        print(context_text)
+
+        logger.debug(f"檢索到的 Context 內容:\n{context_text}")
+
         chain = prompt | self.model
+        logger.info("正在產生 LLM 回答...")
         response = chain.invoke({"context": context_text, "question": english_question})
+
         return response.content
