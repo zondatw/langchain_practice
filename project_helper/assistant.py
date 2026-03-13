@@ -36,28 +36,38 @@ class RustProjectAssistant:
         print(f"--- 正在為 {db_type} 建立新索引 (3.13 相容模式) ---")
         all_docs = []
 
+        exclude_dirs = ["/target/", "/.git/", "/.cargo/"]
+        def load_and_filter(glob_pattern):
+            loader = DirectoryLoader(
+                self.project_path,
+                glob=glob_pattern,
+                loader_cls=TextLoader
+            )
+            raw_docs = loader.load()
+            filtered_docs = [
+                doc for doc in raw_docs 
+                if not any(ex in doc.metadata.get('source', '') for ex in exclude_dirs)
+            ]
+            return filtered_docs
+
         print("--- [Step 1/2] 正在處理 Rust 檔案 (.rs) ---")
-        loader_rs = DirectoryLoader(
-            self.project_path, 
-            glob="**/*.rs", 
-            loader_cls=TextLoader
-        )
         rs_splitter = RecursiveCharacterTextSplitter.from_language(
             language=Language.RUST, chunk_size=1000, chunk_overlap=100
         )
-        all_docs.extend(rs_splitter.split_documents(loader_rs.load()))
+        rs_docs = rs_splitter.split_documents(load_and_filter("**/*.rs"))
+        all_docs.extend(rs_docs)
+
+        sources = set(d.metadata['source'] for d in rs_docs)
+        print(f"共載入 {len(rs_docs)} 個片段，來自 {len(sources)} 個檔案")
+        for s in sorted(sources):
+            print(s)
 
         print("--- [Step 2/2] 正在處理 Markdown 檔案 (.md) ---")
-        loader_md = DirectoryLoader(
-            self.project_path, 
-            glob="**/*.md", 
-            loader_cls=TextLoader
-        )
         md_splitter = RecursiveCharacterTextSplitter(
             chunk_size=800, 
             chunk_overlap=80
         )
-        all_docs.extend(md_splitter.split_documents(loader_md.load()))
+        all_docs.extend(md_splitter.split_documents(load_and_filter("**/*.md")))
         
         path = self.db_paths[db_type]
         if db_type == "Chroma":
@@ -115,7 +125,8 @@ class RustProjectAssistant:
         for i, doc in enumerate(context_docs):
             source = doc.metadata.get('source', '未知來源')
             context_text += f"--- 片段 {i+1} (來源: {source}) ---\n{doc.page_content}\n\n"
-
+        print("---context_text---")
+        print(context_text)
         chain = prompt | self.model
         response = chain.invoke({"context": context_text, "question": question})
         return response.content
