@@ -103,7 +103,16 @@ class RustProjectAssistant:
             print(f"Error getting files: {e}")
             return []
 
+    def _translate_to_english(self, question: str) -> str:
+        response = self.model.invoke(
+            f"Translate the following to English, output only the translation:\n{question}"
+        )
+        return response.content
+
     def ask(self, question: str, db_type="Chroma"):
+        english_question = self._translate_to_english(question)
+        print(f"Translated query: {english_question}")
+
         template = """
         你是一個專業的 Rust 開發助手。請根據以下專案背景（原始碼或文件）回答問題。
         若資訊不足以回答，請說明。回答時請引用檔案路徑並解釋邏輯。請用繁體中文回答
@@ -120,7 +129,7 @@ class RustProjectAssistant:
         retriever = vs.as_retriever(search_kwargs={"k": 5})
 
         # 檢索與組合 Context
-        context_docs = retriever.invoke(question)
+        context_docs = retriever.invoke(english_question)
         context_text = ""
         for i, doc in enumerate(context_docs):
             source = doc.metadata.get('source', '未知來源')
@@ -128,5 +137,5 @@ class RustProjectAssistant:
         print("---context_text---")
         print(context_text)
         chain = prompt | self.model
-        response = chain.invoke({"context": context_text, "question": question})
+        response = chain.invoke({"context": context_text, "question": english_question})
         return response.content
