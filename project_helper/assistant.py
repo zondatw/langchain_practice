@@ -15,7 +15,7 @@ logging.basicConfig(
 )
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("huggingface_hub").setLevel(logging.WARNING) # 順便關閉 HF 的檢查訊息
+logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
 
 logger = logging.getLogger("RustAssistant")
 
@@ -29,20 +29,24 @@ class RustProjectAssistant:
             "Qdrant": "./qdrant_db"
         }
         self.collection_name = "magic_pack"
+        self._vs_cache: dict = {}
         logger.info(f"助手初始化完成，專案路徑: {self.project_path}")
 
     def _get_vectorstore(self, db_type):
+        if db_type in self._vs_cache:
+            return self._vs_cache[db_type]
+
         path = self.db_paths[db_type]
         if not os.path.exists(path) or not os.listdir(path):
             logger.warning(f"{db_type} 索引不存在或為空，準備觸發重新索引...")
-            return self._build_index(db_type)
-
-        logger.info(f"載入現有 {db_type} 向量資料庫")
-        if db_type == "Chroma":
-            return Chroma(persist_directory=path, embedding_function=self.embeddings)
+            vs = self._build_index(db_type)
+        elif db_type == "Chroma":
+            logger.info(f"載入現有 {db_type} 向量資料庫")
+            vs = Chroma(persist_directory=path, embedding_function=self.embeddings)
         else:
+            logger.info(f"載入現有 {db_type} 向量資料庫")
             sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
-            return QdrantVectorStore.from_existing_collection(
+            vs = QdrantVectorStore.from_existing_collection(
                 embedding=self.embeddings,
                 sparse_embedding=sparse_embeddings,
                 path=path,
@@ -50,12 +54,15 @@ class RustProjectAssistant:
                 retrieval_mode=RetrievalMode.HYBRID,
             )
 
+        self._vs_cache[db_type] = vs
+        return vs
+
     def _build_index(self, db_type):
         logger.info(f"開始為 {db_type} 建立新索引 (3.13 相容模式)")
         all_docs = []
 
         exclude_dirs = ["/target/", "/.git/", "/.cargo/"]
-        
+
         def load_and_filter(glob_pattern):
             logger.debug(f"正在使用 Pattern '{glob_pattern}' 載入檔案...")
             loader = DirectoryLoader(
@@ -65,7 +72,7 @@ class RustProjectAssistant:
             )
             raw_docs = loader.load()
             filtered_docs = [
-                doc for doc in raw_docs 
+                doc for doc in raw_docs
                 if not any(ex in doc.metadata.get('source', '') for ex in exclude_dirs)
             ]
             return filtered_docs
@@ -90,7 +97,7 @@ class RustProjectAssistant:
         md_docs = md_splitter.split_documents(load_and_filter("**/*.md"))
         all_docs.extend(md_docs)
         logger.info(f"Markdown 檔案處理完成: {len(md_docs)} 片段")
-        
+
         path = self.db_paths[db_type]
         if db_type == "Chroma":
             vs = Chroma.from_documents(all_docs, self.embeddings, persist_directory=path)
@@ -104,7 +111,8 @@ class RustProjectAssistant:
                 collection_name=self.collection_name,
                 retrieval_mode=RetrievalMode.HYBRID,
             )
-        
+
+        self._vs_cache[db_type] = vs
         logger.info(f"{db_type} 索引建立成功並持久化至 {path}")
         return vs
 
@@ -112,7 +120,7 @@ class RustProjectAssistant:
         try:
             vs = self._get_vectorstore(db_type)
             sources = set()
-            
+
             if db_type == "Chroma":
                 data = vs.get()
                 for metadata in data['metadatas']:
@@ -128,7 +136,7 @@ class RustProjectAssistant:
                     metadata = p.payload.get('metadata', p.payload)
                     if 'source' in metadata:
                         sources.add(metadata.get('source', 'unknown'))
-            
+
             return sorted(list(set(s for s in sources if s)))
         except Exception as e:
             logger.error(f"從 {db_type} 獲取檔案清單失敗: {e}", exc_info=True)
@@ -180,3 +188,23 @@ class RustProjectAssistant:
         response = chain.invoke({"context": context_text, "question": english_question})
 
         return response.content
+
+    def close(self):
+        """主動釋放 vectorstore 資源，避免 Python 關閉時的 __del__ 警告"""
+        for db_type, vs in self._vs_cache.items():
+            try:
+                if db_type == "Qdrant":
+                    client = vs.client
+                    client.close()
+                    # monkey-patch __del__ 成 no-op，避免 GC 時再次呼叫
+                    client.__class__.__del__ = lambda self: None
+                    logger.debug(f"已關閉 {db_type} client")
+            except Exception:
+                pass
+        self._vs_cache.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
