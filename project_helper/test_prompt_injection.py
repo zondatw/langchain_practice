@@ -169,7 +169,7 @@ def run_injection_test(test: dict, db_type: str = "Qdrant") -> dict:
 # ─────────────────────────────────────────────
 
 def save_report(new_run: dict, path: str = "injection_report.html"):
-    """每次執行 append 一個新 run，歷史比對表會自動更新"""
+    """每次執行 append 一個新 run，歷史比對表與詳細結果皆可切換"""
     json_path = Path(path).with_suffix(".json")
     existing_runs = []
     if json_path.exists():
@@ -184,7 +184,6 @@ def save_report(new_run: dict, path: str = "injection_report.html"):
     runs = existing_runs
     test_ids = [t["id"] for t in INJECTION_TESTS]
     test_meta = {t["id"]: t for t in INJECTION_TESTS}
-    latest = runs[-1]
 
     # ── 比對表 rows ──
     rows_html = ""
@@ -195,62 +194,25 @@ def save_report(new_run: dict, path: str = "injection_report.html"):
             f"<td class='cat'>{meta['category']}</td>"
             f"<td class='desc'>{meta['description']}</td>"
         )
-        for run in runs:
+        for i, run in enumerate(runs):
             r = next((x for x in run["results"] if x["id"] == tid), None)
             if r is None:
                 cells += "<td class='na'>—</td>"
             elif r["passed"]:
-                cells += "<td class='pass'>✅</td>"
+                cells += f"<td class='pass clickable' onclick='switchRun({i})'>✅</td>"
             else:
                 tip = "&#10;".join(r["failures"])
-                cells += f"<td class='fail' title='{tip}'>❌</td>"
+                cells += f"<td class='fail clickable' title='{tip}' onclick='switchRun({i})'>❌</td>"
         rows_html += f"<tr>{cells}</tr>\n"
 
     run_headers = "".join(
-        f"<th class='run-header'>{r['label']}<br><span class='ts'>{r['timestamp']}</span></th>"
-        for r in runs
+        f"<th class='run-header clickable' onclick='switchRun({i})'>{r['label']}<br>"
+        f"<span class='ts'>{r['timestamp']}</span></th>"
+        for i, r in enumerate(runs)
     )
 
-    # ── 詳細卡片（最新一次）──
-    details_html = ""
-    for r in latest["results"]:
-        status_cls = "pass" if r["passed"] else "fail"
-        status_icon = "✅ PASS" if r["passed"] else "❌ FAIL"
-        bad_tags = "".join(f"<span class='tag bad'>{b}</span>" for b in r["should_not_contain"])
-        good_tags = "".join(f"<span class='tag good'>{g}</span>" for g in r["should_contain"])
-        good_tags += "".join(f"<span class='tag good' title='任一即過'>{g}*</span>" for g in r.get("should_contain_any", []))
-        failure_html = ""
-        if r["failures"]:
-            items = "".join(f"<li>{f}</li>" for f in r["failures"])
-            failure_html = f"<ul class='failures'>{items}</ul>"
-        answer_esc = (r["answer"]
-            .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
-        for bad in r["hit_bad"]:
-            answer_esc = answer_esc.replace(bad, f"<mark class='bad-hit'>{bad}</mark>")
-
-        details_html += f"""
-        <div class='detail-card {status_cls}'>
-          <div class='detail-header'>
-            <span class='detail-id'>{r['id']}</span>
-            <span class='detail-cat'>{r['category']}</span>
-            <span class='status-badge {status_cls}'>{status_icon}</span>
-          </div>
-          <p class='detail-desc'>{r['description']}</p>
-          <div class='detail-q'><b>問題：</b>{r['question']}</div>
-          <div class='tags-row'>
-            <span class='tag-label'>不應含：</span>{bad_tags if bad_tags else '<span class="tag neutral">（無）</span>'}
-            <span class='tag-label' style='margin-left:12px'>應含：</span>{good_tags if good_tags else '<span class="tag neutral">（無）</span>'}
-          </div>
-          {failure_html}
-          <details>
-            <summary>查看完整回答</summary>
-            <pre class='answer-pre'>{answer_esc}</pre>
-          </details>
-        </div>"""
-
-    total_pass = sum(1 for r in latest["results"] if r["passed"])
-    total = len(latest["results"])
-    summary_cls = "all-pass" if total_pass == total else "has-fail"
+    # ── 把所有 run 的詳細資料嵌入 JS ──
+    runs_json = json.dumps(runs, ensure_ascii=False)
 
     html = f"""<!DOCTYPE html>
 <html lang="zh-Hant">
@@ -271,6 +233,11 @@ def save_report(new_run: dict, path: str = "injection_report.html"):
   .all-pass .score{{color:#22c55e}}
   .has-fail .score{{color:#ef4444}}
   .score-label{{font-size:.8rem;color:#94a3b8}}
+  .run-switcher{{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}}
+  .run-btn{{padding:6px 14px;border-radius:6px;border:1px solid #2d3148;background:#1e2130;
+    color:#94a3b8;cursor:pointer;font-size:.8rem;transition:all .15s}}
+  .run-btn:hover{{border-color:#7dd3fc;color:#7dd3fc}}
+  .run-btn.active{{background:#172554;border-color:#3b82f6;color:#93c5fd;font-weight:600}}
   .table-wrap{{overflow-x:auto;margin-bottom:40px}}
   table{{border-collapse:collapse;min-width:100%;font-size:.82rem}}
   th,td{{padding:10px 14px;border:1px solid #2d3148;text-align:center;white-space:nowrap}}
@@ -281,7 +248,10 @@ def save_report(new_run: dict, path: str = "injection_report.html"):
   td.pass{{background:#14532d44;color:#4ade80;font-size:1.1rem}}
   td.fail{{background:#7f1d1d44;color:#f87171;font-size:1.1rem;cursor:help}}
   td.na{{color:#475569}}
+  td.clickable,th.clickable{{cursor:pointer}}
+  td.clickable:hover,th.clickable:hover{{opacity:.75}}
   .run-header{{background:#1e2130;color:#e2e8f0;font-size:.78rem;min-width:90px}}
+  .run-header.active-col{{background:#172554;color:#93c5fd}}
   .ts{{color:#64748b;font-size:.7rem;font-weight:400}}
   .detail-card{{background:#1e2130;border:1px solid #2d3148;border-radius:10px;padding:20px;margin-bottom:16px}}
   .detail-card.pass{{border-left:3px solid #22c55e}}
@@ -308,21 +278,25 @@ def save_report(new_run: dict, path: str = "injection_report.html"):
     font-size:.8rem;white-space:pre-wrap;word-break:break-word;margin-top:10px;
     color:#cbd5e1;line-height:1.6}}
   mark.bad-hit{{background:#7f1d1d;color:#fca5a5;border-radius:2px;padding:0 2px}}
+  #detail-section h2 span{{color:#7dd3fc;font-weight:400;font-size:.9rem;margin-left:8px}}
 </style>
 </head>
 <body>
 <h1>🔐 Prompt Injection Report</h1>
-<p class="subtitle">最後更新：{latest['timestamp']} · 共 {len(runs)} 次執行</p>
-<div class="summary-bar {summary_cls}">
+<p class="subtitle">最後更新：{runs[-1]['timestamp']} · 共 {len(runs)} 次執行</p>
+
+<div class="summary-bar" id="summary-bar">
   <div>
-    <div class="score">{total_pass}/{total}</div>
-    <div class="score-label">PASS（最新一次）</div>
+    <div class="score" id="summary-score"></div>
+    <div class="score-label">PASS</div>
   </div>
   <div style="color:#64748b;font-size:.85rem">
-    版本標籤：<b style="color:#e2e8f0">{latest['label']}</b>
+    版本標籤：<b style="color:#e2e8f0" id="summary-label"></b>
   </div>
 </div>
-<h2>歷史比對</h2>
+
+<h2>歷史比對 <span style="color:#64748b;font-size:.8rem;font-weight:400">點擊欄位或按鈕可切換</span></h2>
+<div class="run-switcher" id="run-switcher"></div>
 <div class="table-wrap">
 <table>
   <thead>
@@ -333,11 +307,109 @@ def save_report(new_run: dict, path: str = "injection_report.html"):
       {run_headers}
     </tr>
   </thead>
-  <tbody>{rows_html}</tbody>
+  <tbody id="compare-tbody">{rows_html}</tbody>
 </table>
 </div>
-<h2>最新執行詳細結果（{latest['label']}）</h2>
-{details_html}
+
+<div id="detail-section">
+  <h2>詳細結果 <span id="detail-run-label"></span></h2>
+  <div id="detail-cards"></div>
+</div>
+
+<script>
+const RUNS = {runs_json};
+let activeIdx = RUNS.length - 1;
+
+function esc(s) {{
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}}
+
+function highlightBad(text, hitBad) {{
+  let out = esc(text);
+  for (const bad of hitBad) {{
+    out = out.replaceAll(bad, `<mark class="bad-hit">${{bad}}</mark>`);
+  }}
+  return out;
+}}
+
+function renderSummary(idx) {{
+  const run = RUNS[idx];
+  const total = run.results.length;
+  const passed = run.results.filter(r => r.passed).length;
+  const bar = document.getElementById("summary-bar");
+  bar.className = "summary-bar " + (passed === total ? "all-pass" : "has-fail");
+  document.getElementById("summary-score").textContent = passed + "/" + total;
+  document.getElementById("summary-label").textContent = run.label;
+}}
+
+function renderSwitcher(idx) {{
+  const el = document.getElementById("run-switcher");
+  el.innerHTML = RUNS.map((r, i) => {{
+    const total = r.results.length;
+    const passed = r.results.filter(x => x.passed).length;
+    const cls = i === idx ? "run-btn active" : "run-btn";
+    return `<button class="${{cls}}" onclick="switchRun(${{i}})">${{r.label}} ${{passed}}/${{total}}</button>`;
+  }}).join("");
+}}
+
+function renderTableHighlight(idx) {{
+  // highlight active column header
+  document.querySelectorAll(".run-header").forEach((th, i) => {{
+    th.classList.toggle("active-col", i === idx);
+  }});
+}}
+
+function renderDetails(idx) {{
+  const run = RUNS[idx];
+  document.getElementById("detail-run-label").textContent = run.label + " · " + run.timestamp;
+  const container = document.getElementById("detail-cards");
+  container.innerHTML = run.results.map(r => {{
+    const statusCls = r.passed ? "pass" : "fail";
+    const statusIcon = r.passed ? "✅ PASS" : "❌ FAIL";
+    const badTags = (r.should_not_contain || []).map(b =>
+      `<span class="tag bad">${{esc(b)}}</span>`).join("");
+    const goodTags = [
+      ...(r.should_contain || []).map(g => `<span class="tag good">${{esc(g)}}</span>`),
+      ...(r.should_contain_any || []).map(g => `<span class="tag good" title="任一即過">${{esc(g)}}*</span>`)
+    ].join("");
+    const failureHtml = r.failures && r.failures.length
+      ? `<ul class="failures">${{r.failures.map(f => `<li>${{esc(f)}}</li>`).join("")}}</ul>`
+      : "";
+    return `
+    <div class="detail-card ${{statusCls}}">
+      <div class="detail-header">
+        <span class="detail-id">${{r.id}}</span>
+        <span class="detail-cat">${{r.category}}</span>
+        <span class="status-badge ${{statusCls}}">${{statusIcon}}</span>
+      </div>
+      <p class="detail-desc">${{esc(r.description)}}</p>
+      <div class="detail-q"><b>問題：</b>${{esc(r.question)}}</div>
+      <div class="tags-row">
+        <span class="tag-label">不應含：</span>${{badTags || '<span class="tag neutral">（無）</span>'}}
+        <span class="tag-label" style="margin-left:12px">應含：</span>${{goodTags || '<span class="tag neutral">（無）</span>'}}
+      </div>
+      ${{failureHtml}}
+      <details>
+        <summary>查看完整回答</summary>
+        <pre class="answer-pre">${{highlightBad(r.answer, r.hit_bad || [])}}</pre>
+      </details>
+    </div>`;
+  }}).join("");
+}}
+
+function switchRun(idx) {{
+  activeIdx = idx;
+  renderSummary(idx);
+  renderSwitcher(idx);
+  renderTableHighlight(idx);
+  renderDetails(idx);
+  document.getElementById("detail-section").scrollIntoView({{behavior:"smooth", block:"start"}});
+}}
+
+// init
+switchRun(activeIdx);
+</script>
 </body>
 </html>"""
 
