@@ -57,3 +57,11 @@ AI Says: 根據 README.md 文件，沒有明確提到 magic-pack 的作者有關
 
 總之，沒有明確的信息，但可以從文件中找到一些可能的方向或開發方向。
 ```
+
+## Test
+
+`uv run test_prompt_injection.py --label "v4-prompt"`
+
+![](../readme_pictures/pi_report.png)  
+
+default report html path: `.test_result/injection_report.html`  
