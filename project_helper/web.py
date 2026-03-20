@@ -3,21 +3,41 @@ import os
 from assistant import RustProjectAssistant
 
 def create_gr(assistant: RustProjectAssistant):
+
     def chat_response(message, history, db_type):
         return assistant.ask(message, db_type=db_type)
 
+    def get_token_display():
+        usage = assistant.get_current_token_usages()
+        return (
+            f"| 類型 | Prompt | Completion | Total |\n"
+            f"|------|--------|------------|-------|\n"
+            f"| 翻譯 | {usage['translate']['prompt']} | {usage['translate']['completion']} | {usage['translate']['total']} |\n"
+            f"| 回答 | {usage['ask']['prompt']} | {usage['ask']['completion']} | {usage['ask']['total']} |\n"
+            f"| **合計** | **{usage['total']['prompt']}** | **{usage['total']['completion']}** | **{usage['total']['total']}** |"
+        )
+
+    def chat_and_refresh_tokens(message, history, db_type):
+        answer = assistant.ask(message, db_type=db_type)
+        return answer, get_token_display()
+
+    def update_ui_status(choice):
+        files = assistant.get_indexed_files(choice)
+        file_md = "\n".join([f"- `{os.path.basename(f)}`" for f in files]) if files else "*無資料*"
+        return f"**當前:** `{choice}`", file_md
+
     with gr.Blocks() as demo:
         gr.Markdown("# 🦀 Magic-Pack Rust 助手 (多引擎對比版)")
-        
+
         with gr.Row():
             # 左側：聊天與引擎切換
             with gr.Column(scale=3):
                 db_selector = gr.Radio(
-                    choices=["Chroma", "Qdrant"], 
-                    value="Chroma", 
+                    choices=["Chroma", "Qdrant"],
+                    value="Chroma",
                     label="選擇向量資料庫 (Vector DB)"
                 )
-                
+
                 gr.ChatInterface(
                     fn=chat_response,
                     additional_inputs=[db_selector],
@@ -28,52 +48,50 @@ def create_gr(assistant: RustProjectAssistant):
                         ["解釋 magic-pack 的錯誤處理機制", "Chroma"]
                     ],
                 )
-            
-            # 右側：數據源狀態
+
+            # 右側：狀態面板
             with gr.Column(scale=1):
                 gr.Markdown("### 📂 數據源資訊")
-                
-                # 初始化檔案清單
                 initial_files = assistant.get_indexed_files("Chroma")
                 file_list_display = gr.Markdown(
-                    "\n".join([f"- `{os.path.basename(f)}`" for f in initial_files]) 
+                    "\n".join([f"- `{os.path.basename(f)}`" for f in initial_files])
                     if initial_files else "*掃描中...*"
                 )
-                
+
                 gr.Markdown("---")
                 gr.Markdown("### ⚙️ 引擎狀態")
                 status_md = gr.Markdown("**當前:** `Chroma` (預設)")
-                
-                # UI 聯動邏輯
-                def update_ui_status(choice):
-                    files = assistant.get_indexed_files(choice)
-                    file_md = "\n".join([f"- `{os.path.basename(f)}`" for f in files]) if files else "*無資料*"
-                    return f"**當前:** `{choice}`", file_md
 
                 db_selector.change(
-                    update_ui_status, 
-                    inputs=[db_selector], 
+                    update_ui_status,
+                    inputs=[db_selector],
                     outputs=[status_md, file_list_display]
                 )
-                
+
                 gr.Button("重新掃描專案", variant="secondary")
-                
+
+                gr.Markdown("---")
+                gr.Markdown("### 📊 Token 使用量")
+                token_display = gr.Markdown(get_token_display())
+                refresh_btn = gr.Button("🔄 更新使用量", variant="secondary", size="sm")
+                refresh_btn.click(fn=get_token_display, outputs=token_display)
+
     return demo
 
+
 if __name__ == "__main__":
-    # 配置你的專案路徑
     PROJECT_PATH = "~/Repos/magic-pack"
     SERVER_NAME = "0.0.0.0"
     SERVER_PORT = 7860
-    
+
     print("--- 正在初始化後端助手 ---")
     assistant = RustProjectAssistant(project_path=PROJECT_PATH)
-    
+
     app = create_gr(assistant=assistant)
-    
+
     print(f"--- 正在啟動 Gradio 6.x 伺服器 (http://{SERVER_NAME}:{SERVER_PORT}) ---")
     app.launch(
-        server_name=SERVER_NAME, 
+        server_name=SERVER_NAME,
         server_port=SERVER_PORT,
         theme="soft"
     )

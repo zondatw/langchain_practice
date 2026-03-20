@@ -30,6 +30,11 @@ class RustProjectAssistant:
         }
         self.collection_name = "magic_pack"
         self._vs_cache: dict = {}
+        self._token_usage = {
+            "translate": {"prompt": 0, "completion": 0},
+            "ask":       {"prompt": 0, "completion": 0},
+            "total":     {"prompt": 0, "completion": 0},
+        }
         logger.info(f"助手初始化完成，專案路徑: {self.project_path}")
 
     def _get_vectorstore(self, db_type):
@@ -148,7 +153,13 @@ class RustProjectAssistant:
             f"Translate the following to English, output only the translation:\n{question}"
         )
         translated = response.content.strip()
-        logger.info(f"翻譯完成: {translated}")
+        p = response.response_metadata.get("prompt_eval_count", 0)
+        c = response.response_metadata.get("eval_count", 0)
+        self._token_usage["translate"]["prompt"] += p
+        self._token_usage["translate"]["completion"] += c
+        self._token_usage["total"]["prompt"] += p
+        self._token_usage["total"]["completion"] += c
+        logger.info(f"翻譯完成: {translated} (tokens: prompt={p}, completion={c})")
         return translated
 
     def ask(self, question: str, db_type="Chroma"):
@@ -187,7 +198,35 @@ class RustProjectAssistant:
         logger.info("正在產生 LLM 回答...")
         response = chain.invoke({"context": context_text, "question": english_question})
 
+        p = response.response_metadata.get("prompt_eval_count", 0)
+        c = response.response_metadata.get("eval_count", 0)
+        self._token_usage["ask"]["prompt"] += p
+        self._token_usage["ask"]["completion"] += c
+        self._token_usage["total"]["prompt"] += p
+        self._token_usage["total"]["completion"] += c
+        logger.info(f"回答完成 (tokens: prompt={p}, completion={c})")
+
         return response.content
+
+    def get_current_token_usages(self) -> dict:
+        """回傳目前的 token 使用量，供監控工具（DevOps/SRE）查詢"""
+        return {
+            "translate": {
+                "prompt":     self._token_usage["translate"]["prompt"],
+                "completion": self._token_usage["translate"]["completion"],
+                "total":      self._token_usage["translate"]["prompt"] + self._token_usage["translate"]["completion"],
+            },
+            "ask": {
+                "prompt":     self._token_usage["ask"]["prompt"],
+                "completion": self._token_usage["ask"]["completion"],
+                "total":      self._token_usage["ask"]["prompt"] + self._token_usage["ask"]["completion"],
+            },
+            "total": {
+                "prompt":     self._token_usage["total"]["prompt"],
+                "completion": self._token_usage["total"]["completion"],
+                "total":      self._token_usage["total"]["prompt"] + self._token_usage["total"]["completion"],
+            },
+        }
 
     def close(self):
         """主動釋放 vectorstore 資源，避免 Python 關閉時的 __del__ 警告"""
