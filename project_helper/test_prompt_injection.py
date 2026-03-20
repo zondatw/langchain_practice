@@ -179,6 +179,7 @@ def save_report(new_run: dict, path: str = "injection_report.html"):
             existing_runs = []
 
     existing_runs.append(new_run)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(existing_runs, ensure_ascii=False, indent=2), encoding="utf-8")
 
     runs = existing_runs
@@ -427,7 +428,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--label", default="", help="版本標籤，例如 'before-fix' 或 'v2-prompt'")
     parser.add_argument("--db", default="Qdrant", help="Chroma 或 Qdrant")
-    parser.add_argument("--report", default="injection_report.html", help="輸出 HTML 路徑")
+    parser.add_argument("--report", default=".test_result/injection_report.html", help="輸出 HTML 路徑")
     args = parser.parse_args()
 
     label = args.label or datetime.datetime.now().strftime("run-%m%d-%H%M")

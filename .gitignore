@@ -18,3 +18,6 @@ qdrant_db
 
 # eval result
 eval_results.json
+
+# testing
+.test_result
