@@ -6,6 +6,9 @@
 
 ![](../readme_pictures/project_helper_web.png)  
 
+token statistics  
+![](../readme_pictures/token_statistics.png)  
+
 ## Shell
 
 `uv run main.py`
