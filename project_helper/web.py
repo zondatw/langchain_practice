@@ -1,6 +1,7 @@
 import gradio as gr
 import os
 from assistant import RustProjectAssistant
+from metrics import MetricsServer, instrument_assistant
 
 def create_gr(assistant: RustProjectAssistant):
 
@@ -16,10 +17,6 @@ def create_gr(assistant: RustProjectAssistant):
             f"| 回答 | {usage['ask']['prompt']} | {usage['ask']['completion']} | {usage['ask']['total']} |\n"
             f"| **合計** | **{usage['total']['prompt']}** | **{usage['total']['completion']}** | **{usage['total']['total']}** |"
         )
-
-    def chat_and_refresh_tokens(message, history, db_type):
-        answer = assistant.ask(message, db_type=db_type)
-        return answer, get_token_display()
 
     def update_ui_status(choice):
         files = assistant.get_indexed_files(choice)
@@ -76,6 +73,12 @@ def create_gr(assistant: RustProjectAssistant):
                 refresh_btn = gr.Button("🔄 更新使用量", variant="secondary", size="sm")
                 refresh_btn.click(fn=get_token_display, outputs=token_display)
 
+                gr.Markdown("---")
+                gr.Markdown(
+                    "### 🔭 Metrics\n"
+                    f"Prometheus endpoint:  \n`http://localhost:{9090}/metrics`"
+                )
+
     return demo
 
 
@@ -83,9 +86,14 @@ if __name__ == "__main__":
     PROJECT_PATH = "~/Repos/magic-pack"
     SERVER_NAME = "0.0.0.0"
     SERVER_PORT = 7860
+    METRICS_PORT = 9090
 
     print("--- 正在初始化後端助手 ---")
     assistant = RustProjectAssistant(project_path=PROJECT_PATH)
+
+    print("--- 正在注入 Prometheus 監控 ---")
+    instrument_assistant(assistant)
+    MetricsServer.start(port=METRICS_PORT)
 
     app = create_gr(assistant=assistant)
 

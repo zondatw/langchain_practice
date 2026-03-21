@@ -16,6 +16,7 @@ dependencies = [
     "langchain-ollama>=1.0.1",
     "langchain-openai>=1.1.10",
     "langchain-qdrant>=1.1.0",
+    "prometheus-client>=0.24.1",
     "qdrant-client>=1.17.0",
     "sentence-transformers>=5.2.3",
 ]
