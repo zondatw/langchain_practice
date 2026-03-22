@@ -65,34 +65,45 @@ class _SimpleMetrics:
         return f"{name}{{{label_str}}}"
 
     def exposition(self) -> str:
+        """輸出符合 Prometheus text format 的 metrics"""
         lines = []
         with self._lock:
             for key, val in self._counters.items():
-                name = key.split("{")[0]
+                name, labels = self._split_key(key)
                 lines.append(f"# TYPE {name} counter")
-                lines.append(f"{key} {val}")
+                lines.append(f"{name}{labels} {val}")
 
             for key, val in self._gauges.items():
-                name = key.split("{")[0]
+                name, labels = self._split_key(key)
                 lines.append(f"# TYPE {name} gauge")
-                lines.append(f"{key} {val}")
+                lines.append(f"{name}{labels} {val}")
 
             for key, vals in self._histograms.items():
-                name = key.split("{")[0]
+                name, labels = self._split_key(key)
                 count = len(vals)
                 total = sum(vals)
                 avg = total / count if count else 0
+                # labels 插在 metric name 和 suffix 之間
+                ls = labels if labels else ""
                 lines.append(f"# TYPE {name} summary")
-                lines.append(f"{key}_count {count}")
-                lines.append(f"{key}_sum {total:.4f}")
-                lines.append(f"{key}_avg {avg:.4f}")
+                lines.append(f"{name}_count{ls} {count}")
+                lines.append(f"{name}_sum{ls} {total:.4f}")
+                lines.append(f"{name}_avg{ls} {avg:.4f}")
                 if vals:
                     sorted_vals = sorted(vals)
-                    lines.append(f"{key}_p50 {sorted_vals[int(count * 0.50)]:.4f}")
-                    lines.append(f"{key}_p95 {sorted_vals[int(count * 0.95)]:.4f}")
-                    lines.append(f"{key}_p99 {sorted_vals[min(int(count * 0.99), count-1)]:.4f}")
+                    lines.append(f"{name}_p50{ls} {sorted_vals[int(count * 0.50)]:.4f}")
+                    lines.append(f"{name}_p95{ls} {sorted_vals[min(int(count * 0.95), count-1)]:.4f}")
+                    lines.append(f"{name}_p99{ls} {sorted_vals[min(int(count * 0.99), count-1)]:.4f}")
 
         return "\n".join(lines) + "\n"
+
+    @staticmethod
+    def _split_key(key: str):
+        """把 'metric_name{label="val"}' 拆成 ('metric_name', '{label="val"}')"""
+        if "{" in key:
+            idx = key.index("{")
+            return key[:idx], key[idx:]
+        return key, ""
 
 
 _metrics = _SimpleMetrics()

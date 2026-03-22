@@ -76,7 +76,8 @@ def create_gr(assistant: RustProjectAssistant):
                 gr.Markdown("---")
                 gr.Markdown(
                     "### 🔭 Metrics\n"
-                    f"Prometheus endpoint:  \n`http://localhost:{9090}/metrics`"
+                    "Prometheus: `http://localhost:9091`  \n"
+                    "Metrics: `http://localhost:9090/metrics`"
                 )
 
     return demo
