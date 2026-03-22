@@ -1,5 +1,9 @@
 # project helper
 
+- [Web](#web)
+- [Test](#test)
+- [Monitoring](#monitoring)
+
 ## Web
 
 `uv run web.py`
@@ -68,3 +72,14 @@ AI Says: 根據 README.md 文件，沒有明確提到 magic-pack 的作者有關
 ![](../readme_pictures/pi_report.png)  
 
 default report html path: `.test_result/injection_report.html`  
+
+## Monitoring
+
+`docker compose up -d`
+
+[grafana link](http://127.0.0.1:3000/d/rust-assistant/rust-assistant-monitor?orgId=1&from=now-6h&to=now&timezone=browser)  
+![](../readme_pictures/grafana.png)  
+
+[prometheus](http://localhost:9091/service-discovery)  
+![](../readme_pictures/prometheus.png)  
+
