@@ -1,0 +1,71 @@
+# kube-prometheus-stack values
+# 包含 Prometheus + Grafana + Alertmanager
+
+grafana:
+  enabled: true
+  adminPassword: admin
+
+  # 自動載入 datasource 和 dashboard
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_dashboard
+      labelValue: "1"
+    datasources:
+      enabled: true
+
+  service:
+    type: ClusterIP
+
+  # 預設 dashboard
+  defaultDashboardsEnabled: true
+
+prometheus:
+  enabled: true
+
+  prometheusSpec:
+    # 讓 Prometheus 抓取所有 namespace 的 ServiceMonitor
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+
+    # 抓取 host 機器上的 rust assistant app metrics
+    additionalScrapeConfigs:
+      - job_name: "rust_assistant_host"
+        static_configs:
+          - targets: ["host.docker.internal:9090"]
+        metrics_path: /metrics
+        scrape_interval: 15s
+
+    # 本地開發保留 3 天資料就夠
+    retention: 3d
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+alertmanager:
+  enabled: false  # 本地開發不需要
+
+# 關閉不需要的元件，節省資源
+kubeStateMetrics:
+  enabled: true
+
+nodeExporter:
+  enabled: false  # 本地 k3d 不需要
+
+kubelet:
+  enabled: false

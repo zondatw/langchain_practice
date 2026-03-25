@@ -1,0 +1,47 @@
+replicaCount: 1
+
+image:
+  tag: "v1.7.4"
+
+service:
+  type: ClusterIP
+  port: 6333
+  grpcPort: 6334
+
+# 本地開發用，關閉 TLS
+config:
+  cluster:
+    enabled: false
+
+persistence:
+  accessModes: ["ReadWriteOnce"]
+  size: 2Gi
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Prometheus metrics
+metrics:
+  serviceMonitor:
+    enabled: false  # Prometheus Operator CRD 需先安裝
+    namespace: monitoring
+    interval: 15s
+
+# 本地開發不需要 API key
+apiKey: ""
+
+# readiness / liveness
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 5
+  periodSeconds: 5

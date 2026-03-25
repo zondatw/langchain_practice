@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rust-assistant-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  rust-assistant.json: |
+    {
+          "title": "Rust Assistant Monitor",
+          "uid": "rust-assistant",
+          "timezone": "browser",
+          "refresh": "10s",
+          "schemaVersion": 38,
+          "panels": [
+            {
+              "id": 1,
+              "title": "Request Rate (req/min)",
+              "type": "timeseries",
+              "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+              "targets": [
+                {
+                  "expr": "rate(rust_assistant_requests_total{status=\"success\"}[1m]) * 60",
+                  "legendFormat": "{{operation}} ({{db}}) success"
+                },
+                {
+                  "expr": "rate(rust_assistant_requests_total{status=\"error\"}[1m]) * 60",
+                  "legendFormat": "{{operation}} error"
+                }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "reqpm", "color": { "mode": "palette-classic" } }
+              }
+            },
+            {
+              "id": 2,
+              "title": "Error Rate",
+              "type": "timeseries",
+              "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+              "targets": [
+                {
+                  "expr": "rate(rust_assistant_errors_total[1m]) * 60",
+                  "legendFormat": "{{operation}} - {{error}}"
+                }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "reqpm", "color": { "fixedColor": "red", "mode": "fixed" } }
+              }
+            },
+            {
+              "id": 3,
+              "title": "Response Latency p50 / p95 / p99 (seconds)",
+              "type": "timeseries",
+              "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+              "targets": [
+                { "expr": "rust_assistant_latency_seconds_p50", "legendFormat": "{{operation}} p50" },
+                { "expr": "rust_assistant_latency_seconds_p95", "legendFormat": "{{operation}} p95" },
+                { "expr": "rust_assistant_latency_seconds_p99", "legendFormat": "{{operation}} p99" }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "s", "color": { "mode": "palette-classic" } }
+              }
+            },
+            {
+              "id": 4,
+              "title": "Cumulative Token Usage",
+              "type": "timeseries",
+              "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+              "targets": [
+                { "expr": "rust_assistant_tokens_total", "legendFormat": "Total tokens" },
+                { "expr": "rust_assistant_tokens_total_prompt", "legendFormat": "Prompt tokens" },
+                { "expr": "rust_assistant_tokens_total_completion", "legendFormat": "Completion tokens" }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+              }
+            },
+            {
+              "id": 5,
+              "title": "Token Usage by Operation",
+              "type": "timeseries",
+              "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+              "targets": [
+                { "expr": "rust_assistant_tokens_ask_prompt", "legendFormat": "ask prompt" },
+                { "expr": "rust_assistant_tokens_ask_completion", "legendFormat": "ask completion" },
+                { "expr": "rust_assistant_tokens_translate_prompt", "legendFormat": "translate prompt" },
+                { "expr": "rust_assistant_tokens_translate_completion", "legendFormat": "translate completion" }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+              }
+            },
+            {
+              "id": 6,
+              "title": "Total Tokens (Current)",
+              "type": "stat",
+              "gridPos": { "x": 0, "y": 24, "w": 6, "h": 4 },
+              "targets": [
+                { "expr": "rust_assistant_tokens_total", "legendFormat": "Total" }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "short", "color": { "mode": "thresholds" },
+                  "thresholds": { "steps": [
+                    { "value": 0, "color": "green" },
+                    { "value": 50000, "color": "yellow" },
+                    { "value": 100000, "color": "red" }
+                  ]}
+                }
+              },
+              "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "graphMode": "none" }
+            },
+            {
+              "id": 7,
+              "title": "Total Requests",
+              "type": "stat",
+              "gridPos": { "x": 6, "y": 24, "w": 6, "h": 4 },
+              "targets": [
+                { "expr": "rust_assistant_requests_total{status=\"success\"}", "legendFormat": "Success" }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "short", "color": { "fixedColor": "green", "mode": "fixed" } }
+              },
+              "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "graphMode": "none" }
+            },
+            {
+              "id": 8,
+              "title": "Total Errors",
+              "type": "stat",
+              "gridPos": { "x": 12, "y": 24, "w": 6, "h": 4 },
+              "targets": [
+                { "expr": "rust_assistant_errors_total", "legendFormat": "Errors" }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "short", "color": { "fixedColor": "red", "mode": "fixed" } }
+              },
+              "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "graphMode": "none" }
+            },
+            {
+              "id": 9,
+              "title": "Avg Latency (ask)",
+              "type": "stat",
+              "gridPos": { "x": 18, "y": 24, "w": 6, "h": 4 },
+              "targets": [
+                { "expr": "rust_assistant_latency_seconds_avg{operation=\"ask\"}", "legendFormat": "Avg" }
+              ],
+              "fieldConfig": {
+                "defaults": { "unit": "s", "color": { "mode": "thresholds" },
+                  "thresholds": { "steps": [
+                    { "value": 0, "color": "green" },
+                    { "value": 5, "color": "yellow" },
+                    { "value": 10, "color": "red" }
+                  ]}
+                }
+              },
+              "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "graphMode": "none" }
+            }
+          ]
+        }
