@@ -2,7 +2,8 @@
 
 - [Web](#web)
 - [Test](#test)
-- [Monitoring](#monitoring)
+- [docker](#docker)
+- [k8s](#k8s)
 
 ## Web
 
@@ -73,13 +74,42 @@ AI Says: 根據 README.md 文件，沒有明確提到 magic-pack 的作者有關
 
 default report html path: `.test_result/injection_report.html`  
 
-## Monitoring
+## docker
 
 `docker compose up -d`
 
 [grafana link](http://127.0.0.1:3000/d/rust-assistant/rust-assistant-monitor?orgId=1&from=now-6h&to=now&timezone=browser)  
-![](../readme_pictures/grafana.png)  
+![](../readme_pictures/docker_grafana.png)  
 
-[prometheus](http://localhost:9091/service-discovery)  
-![](../readme_pictures/prometheus.png)  
+[prometheus link](http://localhost:9091/service-discovery)  
+![](../readme_pictures/docker_prometheus.png)  
 
+
+## k8s
+
+`Need install k3d & helm first.`  
+
+start:  
+```shell
+bash setup.sh
+
+echo '127.0.0.1 qdrant.rust-assistant.local grafana.rust-assistant.local prometheus.rust-assistant.local' | sudo tee -a /etc/hosts"
+
+kubectl port-forward svc/qdrant 6333:6333 -n qdrant &
+
+QDRANT_MODE=remote QDRANT_HOST=localhost uv run web.py
+```
+
+end:  
+```shell
+bash teardown.sh
+```
+
+[grafana link](http://grafana.rust-assistant.local/d/rust-assistant/rust-assistant-monitor?orgId=1&from=now-6h&to=now&timezone=browser&refresh=10s)  
+![](../readme_pictures/k8s_grafana.png) 
+
+[prometheus link](http://prometheus.rust-assistant.local/targets)  
+![](../readme_pictures/k8s_prometheus.png)  
+
+[Qdrant link](http://qdrant.rust-assistant.local/dashboard#/collections)  
+![](../readme_pictures/k8s_qdrant.png)  
