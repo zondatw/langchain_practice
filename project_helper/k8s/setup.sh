@@ -88,6 +88,9 @@ helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
 info "套用 Ingress 規則..."
 kubectl apply -f "$SCRIPT_DIR/ingress/ingress.yaml"
 
+info "套用 Qdrant ConfigMap..."
+kubectl apply -f "$SCRIPT_DIR/qdrant/configmap.yaml"
+
 info "套用 Grafana Dashboard ConfigMap..."
 kubectl apply -f "$SCRIPT_DIR/monitoring/grafana-dashboard-cm.yaml"
 

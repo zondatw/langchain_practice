@@ -7,6 +7,7 @@ from langchain_qdrant import QdrantVectorStore, RetrievalMode, FastEmbedSparse
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
+from qdrant_client import QdrantClient
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,7 +29,11 @@ class RustProjectAssistant:
             "Chroma": "./chroma_db",
             "Qdrant": "./qdrant_db"
         }
-        self.collection_name = "magic_pack"
+        # Qdrant 連線設定：優先讀環境變數，fallback 到本地模式
+        self.qdrant_mode     = os.environ.get("QDRANT_MODE", "local")
+        self.qdrant_host     = os.environ.get("QDRANT_HOST", "localhost")
+        self.qdrant_port     = int(os.environ.get("QDRANT_PORT", "6333"))
+        self.collection_name = os.environ.get("QDRANT_COLLECTION", "magic_pack")
         self._vs_cache: dict = {}
         self._token_usage = {
             "translate": {"prompt": 0, "completion": 0},
@@ -37,11 +42,39 @@ class RustProjectAssistant:
         }
         logger.info(f"助手初始化完成，專案路徑: {self.project_path}")
 
+    def _collection_exists(self) -> bool:
+        """確認 remote Qdrant 上 collection 是否存在"""
+        try:
+            client = QdrantClient(url=f"http://{self.qdrant_host}:{self.qdrant_port}")
+            collections = [c.name for c in client.get_collections().collections]
+            return self.collection_name in collections
+        except Exception:
+            return False
+
     def _get_vectorstore(self, db_type):
         if db_type in self._vs_cache:
             return self._vs_cache[db_type]
 
         path = self.db_paths[db_type]
+
+        # remote 模式：檢查 collection 是否存在
+        if db_type == "Qdrant" and self.qdrant_mode == "remote":
+            if not self._collection_exists():
+                logger.warning(f"Remote Qdrant collection '{self.collection_name}' 不存在，準備建立索引...")
+                vs = self._build_index(db_type)
+            else:
+                logger.info(f"載入現有 Qdrant 向量資料庫 (remote: {self.qdrant_host}:{self.qdrant_port})")
+                sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
+                vs = QdrantVectorStore.from_existing_collection(
+                    embedding=self.embeddings,
+                    sparse_embedding=sparse_embeddings,
+                    url=f"http://{self.qdrant_host}:{self.qdrant_port}",
+                    collection_name=self.collection_name,
+                    retrieval_mode=RetrievalMode.HYBRID,
+                )
+            self._vs_cache[db_type] = vs
+            return vs
+
         if not os.path.exists(path) or not os.listdir(path):
             logger.warning(f"{db_type} 索引不存在或為空，準備觸發重新索引...")
             vs = self._build_index(db_type)
@@ -49,15 +82,24 @@ class RustProjectAssistant:
             logger.info(f"載入現有 {db_type} 向量資料庫")
             vs = Chroma(persist_directory=path, embedding_function=self.embeddings)
         else:
-            logger.info(f"載入現有 {db_type} 向量資料庫")
+            logger.info(f"載入現有 {db_type} 向量資料庫 (mode={self.qdrant_mode})")
             sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
-            vs = QdrantVectorStore.from_existing_collection(
-                embedding=self.embeddings,
-                sparse_embedding=sparse_embeddings,
-                path=path,
-                collection_name=self.collection_name,
-                retrieval_mode=RetrievalMode.HYBRID,
-            )
+            if self.qdrant_mode == "remote":
+                vs = QdrantVectorStore.from_existing_collection(
+                    embedding=self.embeddings,
+                    sparse_embedding=sparse_embeddings,
+                    url=f"http://{self.qdrant_host}:{self.qdrant_port}",
+                    collection_name=self.collection_name,
+                    retrieval_mode=RetrievalMode.HYBRID,
+                )
+            else:
+                vs = QdrantVectorStore.from_existing_collection(
+                    embedding=self.embeddings,
+                    sparse_embedding=sparse_embeddings,
+                    path=path,
+                    collection_name=self.collection_name,
+                    retrieval_mode=RetrievalMode.HYBRID,
+                )
 
         self._vs_cache[db_type] = vs
         return vs
@@ -108,14 +150,24 @@ class RustProjectAssistant:
             vs = Chroma.from_documents(all_docs, self.embeddings, persist_directory=path)
         else:
             sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
-            vs = QdrantVectorStore.from_documents(
-                all_docs,
-                embedding=self.embeddings,
-                sparse_embedding=sparse_embeddings,
-                path=path,
-                collection_name=self.collection_name,
-                retrieval_mode=RetrievalMode.HYBRID,
-            )
+            if self.qdrant_mode == "remote":
+                vs = QdrantVectorStore.from_documents(
+                    all_docs,
+                    embedding=self.embeddings,
+                    sparse_embedding=sparse_embeddings,
+                    url=f"http://{self.qdrant_host}:{self.qdrant_port}",
+                    collection_name=self.collection_name,
+                    retrieval_mode=RetrievalMode.HYBRID,
+                )
+            else:
+                vs = QdrantVectorStore.from_documents(
+                    all_docs,
+                    embedding=self.embeddings,
+                    sparse_embedding=sparse_embeddings,
+                    path=path,
+                    collection_name=self.collection_name,
+                    retrieval_mode=RetrievalMode.HYBRID,
+                )
 
         self._vs_cache[db_type] = vs
         logger.info(f"{db_type} 索引建立成功並持久化至 {path}")
@@ -131,7 +183,10 @@ class RustProjectAssistant:
                 for metadata in data['metadatas']:
                     sources.add(metadata.get('source', 'unknown'))
             else:
-                client = vs.client
+                if self.qdrant_mode == "remote":
+                    client = QdrantClient(url=f"http://{self.qdrant_host}:{self.qdrant_port}")
+                else:
+                    client = vs.client
                 points, _ = client.scroll(
                     collection_name=self.collection_name,
                     with_payload=True,
@@ -235,7 +290,6 @@ class RustProjectAssistant:
                 if db_type == "Qdrant":
                     client = vs.client
                     client.close()
-                    # monkey-patch __del__ 成 no-op，避免 GC 時再次呼叫
                     client.__class__.__del__ = lambda self: None
                     logger.debug(f"已關閉 {db_type} client")
             except Exception:

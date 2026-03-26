@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rust-assistant-config
+  namespace: qdrant
+data:
+  # Qdrant 連線設定
+  QDRANT_HOST: "qdrant.qdrant.svc.cluster.local"
+  QDRANT_PORT: "6333"
+  QDRANT_COLLECTION: "magic_pack"
+  # 切換模式：local（本地檔案）或 remote（k8s service）
+  QDRANT_MODE: "remote"
