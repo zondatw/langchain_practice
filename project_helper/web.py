@@ -2,6 +2,7 @@ import gradio as gr
 import os
 from assistant import RustProjectAssistant
 from metrics import MetricsServer, instrument_assistant
+from settings import load_settings
 
 def create_gr(assistant: RustProjectAssistant):
 
@@ -84,13 +85,17 @@ def create_gr(assistant: RustProjectAssistant):
 
 
 if __name__ == "__main__":
-    PROJECT_PATH = "~/Repos/magic-pack"
     SERVER_NAME = "0.0.0.0"
     SERVER_PORT = 7860
     METRICS_PORT = 9090
+    settings = load_settings()
 
     print("--- 正在初始化後端助手 ---")
-    assistant = RustProjectAssistant(project_path=PROJECT_PATH)
+    assistant = RustProjectAssistant(
+        project_path=settings.project_path,
+        qdrant_settings=settings.qdrant,
+        zhtw_mcp_settings=settings.zhtw_mcp,
+    )
 
     print("--- 正在注入 Prometheus 監控 ---")
     instrument_assistant(assistant)

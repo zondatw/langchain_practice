@@ -1,4 +1,5 @@
 from assistant import RustProjectAssistant
+from settings import load_settings
 
 def Q_a_A(assistant: RustProjectAssistant, question: str):
     print(f"Q: {question}")
@@ -6,7 +7,12 @@ def Q_a_A(assistant: RustProjectAssistant, question: str):
 
 
 if __name__ == "__main__":
-    assistant = RustProjectAssistant(project_path="~/Repos/magic-pack")
+    settings = load_settings()
+    assistant = RustProjectAssistant(
+        project_path=settings.project_path,
+        qdrant_settings=settings.qdrant,
+        zhtw_mcp_settings=settings.zhtw_mcp,
+    )
     
     print("\n[AI 專案助手已就緒]")
     Q_a_A(assistant=assistant, question="magic-pack 的安裝步驟是什麼？")

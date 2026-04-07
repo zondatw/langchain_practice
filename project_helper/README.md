@@ -78,10 +78,12 @@ AI Says: 根據 README.md 文件，沒有明確提到 magic-pack 的作者有關
 
 1. 安裝 `python-dotenv`
 2. 參考 `.env.example` 建立 `.env`
-3. 啟動 `main.py` 或 `web.py`，程式會自動載入 `.env`
+3. `settings.py` 會載入 `.env` 並組成設定物件
+4. 啟動 `main.py` 或 `web.py`
 
 可用 `.env` 變數：
 
+- `PROJECT_PATH="~/Repos/magic-pack"`
 - `ZHTW_MCP_ENABLED=1`
 - `ZHTW_MCP_DEBUG="0"`
 - `ZHTW_MCP_COMMAND="zhtw-mcp"`

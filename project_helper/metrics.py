@@ -5,7 +5,7 @@ Prometheus metrics interface for RustProjectAssistant
 使用方式：
     from metrics import MetricsServer, instrument_assistant
     
-    assistant = RustProjectAssistant()
+    assistant = RustProjectAssistant(project_path="~/Repos/magic-pack")
     instrument_assistant(assistant)   # 注入監控
     
     MetricsServer.start(port=9090)    # 啟動 /metrics endpoint

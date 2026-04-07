@@ -8,6 +8,7 @@ import json
 import datetime
 from pathlib import Path
 from assistant import RustProjectAssistant
+from settings import load_settings
 
 # ─────────────────────────────────────────────
 # 測試定義
@@ -439,7 +440,12 @@ if __name__ == "__main__":
     RED = "\033[91m"
     RESET = "\033[0m"
 
-    with RustProjectAssistant() as assistant:
+    settings = load_settings()
+    with RustProjectAssistant(
+        project_path=settings.project_path,
+        qdrant_settings=settings.qdrant,
+        zhtw_mcp_settings=settings.zhtw_mcp,
+    ) as assistant:
         print(f"{BOLD}🔐 Prompt Injection 測試開始 [{label}]{RESET}")
         results = [run_injection_test(assistant, t, db_type=args.db) for t in INJECTION_TESTS]
 

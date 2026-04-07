@@ -7,11 +7,6 @@ import shutil
 import subprocess
 import time
 
-try:
-    from dotenv import load_dotenv
-except ImportError:
-    load_dotenv = None
-
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import ChatOllama
 from langchain_chroma import Chroma
@@ -20,6 +15,7 @@ from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from qdrant_client import QdrantClient
+from settings import QdrantSettings, ZhTwMcpSettings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,32 +28,21 @@ logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
 
 logger = logging.getLogger("RustAssistant")
 
-if load_dotenv is not None:
-    load_dotenv()
-else:
-    logger.warning("python-dotenv 未安裝，將略過 .env 載入")
-
-
-def _env_flag(name: str, default: bool) -> bool:
-    value = os.environ.get(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
 
 class ZhTwMcpPostProcessor:
-    def __init__(self):
-        self.enabled = _env_flag("ZHTW_MCP_ENABLED", True)
-        self.debug_enabled = _env_flag("ZHTW_MCP_DEBUG", False)
-        self.command = shlex.split(os.environ.get("ZHTW_MCP_COMMAND", "zhtw-mcp"))
-        self.timeout_seconds = float(os.environ.get("ZHTW_MCP_TIMEOUT_SECONDS", "10"))
-        self.fix_mode = os.environ.get("ZHTW_MCP_FIX_MODE", "lexical_safe")
-        self.profile = os.environ.get("ZHTW_MCP_PROFILE", "default")
-        self.content_type = os.environ.get("ZHTW_MCP_CONTENT_TYPE", "markdown")
-        self.output = os.environ.get("ZHTW_MCP_OUTPUT", "compact")
-        self.explain = _env_flag("ZHTW_MCP_EXPLAIN", False)
-        self.max_errors = int(os.environ.get("ZHTW_MCP_MAX_ERRORS", "0"))
-        self.cli_fallback_enabled = _env_flag("ZHTW_MCP_CLI_FALLBACK_ENABLED", True)
+    def __init__(self, settings: ZhTwMcpSettings | None = None):
+        config = settings or ZhTwMcpSettings()
+        self.enabled = config.enabled
+        self.debug_enabled = config.debug_enabled
+        self.command = shlex.split(config.command)
+        self.timeout_seconds = config.timeout_seconds
+        self.fix_mode = config.fix_mode
+        self.profile = config.profile
+        self.content_type = config.content_type
+        self.output = config.output
+        self.explain = config.explain
+        self.max_errors = config.max_errors
+        self.cli_fallback_enabled = config.cli_fallback_enabled
         self.available = self.enabled and bool(self.command) and shutil.which(self.command[0]) is not None
 
         if self.debug_enabled:
@@ -400,20 +385,25 @@ class ZhTwMcpPostProcessor:
         self._debug_text_preview(f"zhtw-mcp {source} after", after)
 
 class RustProjectAssistant:
-    def __init__(self, project_path="~/Repos/magic-pack"):
+    def __init__(
+        self,
+        project_path: str,
+        qdrant_settings: QdrantSettings | None = None,
+        zhtw_mcp_settings: ZhTwMcpSettings | None = None,
+    ):
         self.project_path = os.path.abspath(os.path.expanduser(project_path))
         self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         self.model = ChatOllama(model="llama3", temperature=0)
-        self.zhtw_post_processor = ZhTwMcpPostProcessor()
+        self.zhtw_post_processor = ZhTwMcpPostProcessor(settings=zhtw_mcp_settings)
         self.db_paths = {
             "Chroma": "./chroma_db",
             "Qdrant": "./qdrant_db"
         }
-        # Qdrant 連線設定：優先讀環境變數，fallback 到本地模式
-        self.qdrant_mode     = os.environ.get("QDRANT_MODE", "local")
-        self.qdrant_host     = os.environ.get("QDRANT_HOST", "localhost")
-        self.qdrant_port     = int(os.environ.get("QDRANT_PORT", "6333"))
-        self.collection_name = os.environ.get("QDRANT_COLLECTION", "magic_pack")
+        qdrant_config = qdrant_settings or QdrantSettings()
+        self.qdrant_mode = qdrant_config.mode
+        self.qdrant_host = qdrant_config.host
+        self.qdrant_port = qdrant_config.port
+        self.collection_name = qdrant_config.collection_name
         self._vs_cache: dict = {}
         self._token_usage = {
             "translate": {"prompt": 0, "completion": 0},
