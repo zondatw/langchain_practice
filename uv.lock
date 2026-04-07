@@ -1252,6 +1252,7 @@ dependencies = [
     { name = "langchain-openai" },
     { name = "langchain-qdrant" },
     { name = "prometheus-client" },
+    { name = "python-dotenv" },
     { name = "qdrant-client" },
     { name = "sentence-transformers" },
 ]
@@ -1270,6 +1271,7 @@ requires-dist = [
     { name = "langchain-openai", specifier = ">=1.1.10" },
     { name = "langchain-qdrant", specifier = ">=1.1.0" },
     { name = "prometheus-client", specifier = ">=0.24.1" },
+    { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "qdrant-client", specifier = ">=1.17.0" },
     { name = "sentence-transformers", specifier = ">=5.2.3" },
 ]

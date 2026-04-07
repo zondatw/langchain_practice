@@ -66,6 +66,52 @@ AI Says: 根據 README.md 文件，沒有明確提到 magic-pack 的作者有關
 總之，沒有明確的信息，但可以從文件中找到一些可能的方向或開發方向。
 ```
 
+## zhtw-mcp post-process
+
+`RustProjectAssistant.ask()` 現在會在主回答產生後，額外呼叫 `zhtw-mcp` 做 zh-TW 用語與標點修正，再回傳最後內容。  
+如果系統中找不到 `zhtw-mcp`，會直接退回原始回答，不會中斷 ask flow。
+
+安裝 `zhtw-mcp` 可參考官方 repo：  
+<https://github.com/sysprog21/zhtw-mcp>
+
+設定方式：
+
+1. 安裝 `python-dotenv`
+2. 參考 `.env.example` 建立 `.env`
+3. 啟動 `main.py` 或 `web.py`，程式會自動載入 `.env`
+
+可用 `.env` 變數：
+
+- `ZHTW_MCP_ENABLED=1`
+- `ZHTW_MCP_DEBUG="0"`
+- `ZHTW_MCP_COMMAND="zhtw-mcp"`
+- `ZHTW_MCP_TIMEOUT_SECONDS="10"`
+- `ZHTW_MCP_FIX_MODE="lexical_safe"`
+- `ZHTW_MCP_PROFILE="default"`
+- `ZHTW_MCP_CONTENT_TYPE="markdown"`
+- `ZHTW_MCP_OUTPUT="compact"`
+- `ZHTW_MCP_EXPLAIN="0"`
+- `ZHTW_MCP_MAX_ERRORS="0"`
+- `ZHTW_MCP_CLI_FALLBACK_ENABLED="1"`
+- `QDRANT_MODE="local"`
+- `QDRANT_HOST="localhost"`
+- `QDRANT_PORT="6333"`
+- `QDRANT_COLLECTION="magic_pack"`
+
+範例：
+
+```shell
+cp .env.example .env
+uv sync
+uv run main.py
+```
+
+除錯範例：
+
+```shell
+ZHTW_MCP_DEBUG=1 uv run main.py
+```
+
 ## Test
 
 `uv run test_prompt_injection.py --label "v4-prompt"`
