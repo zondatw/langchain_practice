@@ -7,7 +7,17 @@
 
 ## Web
 
+在 `project_helper/` 目錄下執行：
+
 `uv run web.py`
+
+模組方式也可用：
+
+`uv run python -m project_helper.web_app`
+
+或使用 console script：
+
+`uv run project-helper-web`
 
 ![](../readme_pictures/project_helper_web.png)  
 
@@ -16,7 +26,17 @@ token statistics
 
 ## Shell
 
+在 `project_helper/` 目錄下執行：
+
 `uv run main.py`
+
+模組方式也可用：
+
+`uv run python -m project_helper`
+
+或使用 console script：
+
+`uv run project-helper`
 
 ```text
 --- 初始化本地 Embedding 模型 (all-MiniLM-L6-v2) ---
@@ -125,7 +145,13 @@ ZHTW_MCP_DEBUG=1 uv run main.py
 
 ## Test
 
-`uv run test_prompt_injection.py --label "v4-prompt"`
+在 `project_helper/` 目錄下執行：
+
+`uv run python -m project_helper.test_prompt_injection --label "v4-prompt"`
+
+或使用 console script：
+
+`uv run project-helper-pi-test --label "v4-prompt"`
 
 ![](../readme_pictures/pi_report.png)  
 

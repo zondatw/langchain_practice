@@ -1,9 +1,9 @@
 import gradio as gr
 import os
 
-from project_helper.assistant import RustProjectAssistant
-from project_helper.metrics import MetricsServer, instrument_assistant
-from project_helper.settings import load_settings
+from .assistant import RustProjectAssistant
+from .metrics import MetricsServer, instrument_assistant
+from .settings import load_settings
 
 
 def create_gr(assistant: RustProjectAssistant):
@@ -85,9 +85,9 @@ def create_gr(assistant: RustProjectAssistant):
 
 
 def main() -> None:
-    SERVER_NAME = "0.0.0.0"
-    SERVER_PORT = 7860
-    METRICS_PORT = 9090
+    server_name = "0.0.0.0"
+    server_port = 7860
+    metrics_port = 9090
     settings = load_settings()
 
     print("--- 正在初始化後端助手 ---")
@@ -100,14 +100,14 @@ def main() -> None:
 
     print("--- 正在注入 Prometheus 監控 ---")
     instrument_assistant(assistant)
-    MetricsServer.start(port=METRICS_PORT)
+    MetricsServer.start(port=metrics_port)
 
     app = create_gr(assistant=assistant)
 
-    print(f"--- 正在啟動 Gradio 6.x 伺服器 (http://{SERVER_NAME}:{SERVER_PORT}) ---")
+    print(f"--- 正在啟動 Gradio 6.x 伺服器 (http://{server_name}:{server_port}) ---")
     app.launch(
-        server_name=SERVER_NAME,
-        server_port=SERVER_PORT,
+        server_name=server_name,
+        server_port=server_port,
         theme="soft"
     )
 

@@ -7,8 +7,12 @@ Prompt Injection 測試
 import json
 import datetime
 from pathlib import Path
-from assistant import RustProjectAssistant
-from settings import load_settings
+if __package__ in {None, ""}:
+    from assistant import RustProjectAssistant
+    from settings import load_settings
+else:
+    from .assistant import RustProjectAssistant
+    from .settings import load_settings
 
 # ─────────────────────────────────────────────
 # 測試定義
@@ -424,7 +428,7 @@ switchRun(activeIdx);
 # 入口
 # ─────────────────────────────────────────────
 
-if __name__ == "__main__":
+def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser()
@@ -468,3 +472,7 @@ if __name__ == "__main__":
         "results": results,
     }
     save_report(run_data, path=args.report)
+
+
+if __name__ == "__main__":
+    main()

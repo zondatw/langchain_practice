@@ -1,5 +1,5 @@
-from project_helper.assistant import RustProjectAssistant
-from project_helper.settings import load_settings
+from .assistant import RustProjectAssistant
+from .settings import load_settings
 
 
 def Q_a_A(assistant: RustProjectAssistant, question: str):

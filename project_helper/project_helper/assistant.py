@@ -15,7 +15,10 @@ from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from qdrant_client import QdrantClient
-from settings import AssistantRuntimeSettings, QdrantSettings, ZhTwMcpSettings
+if __package__ in {None, ""}:
+    from settings import AssistantRuntimeSettings, QdrantSettings, ZhTwMcpSettings
+else:
+    from .settings import AssistantRuntimeSettings, QdrantSettings, ZhTwMcpSettings
 
 logging.basicConfig(
     level=logging.INFO,
