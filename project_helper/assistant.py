@@ -15,7 +15,7 @@ from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from qdrant_client import QdrantClient
-from settings import QdrantSettings, ZhTwMcpSettings
+from settings import AssistantRuntimeSettings, QdrantSettings, ZhTwMcpSettings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -388,22 +388,24 @@ class RustProjectAssistant:
     def __init__(
         self,
         project_path: str,
+        runtime_settings: AssistantRuntimeSettings | None = None,
         qdrant_settings: QdrantSettings | None = None,
         zhtw_mcp_settings: ZhTwMcpSettings | None = None,
     ):
+        self.runtime_settings = runtime_settings or AssistantRuntimeSettings()
         self.project_path = os.path.abspath(os.path.expanduser(project_path))
-        self.embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-        self.model = ChatOllama(model="llama3", temperature=0)
+        self.embeddings = HuggingFaceEmbeddings(model_name=self.runtime_settings.embedding_model_name)
+        self.model = ChatOllama(
+            model=self.runtime_settings.chat_model_name,
+            temperature=self.runtime_settings.chat_temperature,
+        )
         self.zhtw_post_processor = ZhTwMcpPostProcessor(settings=zhtw_mcp_settings)
         self.db_paths = {
             "Chroma": "./chroma_db",
             "Qdrant": "./qdrant_db"
         }
-        qdrant_config = qdrant_settings or QdrantSettings()
-        self.qdrant_mode = qdrant_config.mode
-        self.qdrant_host = qdrant_config.host
-        self.qdrant_port = qdrant_config.port
-        self.collection_name = qdrant_config.collection_name
+        self.qdrant_settings = qdrant_settings or QdrantSettings()
+        self.collection_name = self.qdrant_settings.collection_name
         self._vs_cache: dict = {}
         self._token_usage = {
             "translate": {"prompt": 0, "completion": 0},
@@ -415,7 +417,7 @@ class RustProjectAssistant:
     def _collection_exists(self) -> bool:
         """確認 remote Qdrant 上 collection 是否存在"""
         try:
-            client = QdrantClient(url=f"http://{self.qdrant_host}:{self.qdrant_port}")
+            client = QdrantClient(url=self.qdrant_settings.url)
             collections = [c.name for c in client.get_collections().collections]
             return self.collection_name in collections
         except Exception:
@@ -428,17 +430,17 @@ class RustProjectAssistant:
         path = self.db_paths[db_type]
 
         # remote 模式：檢查 collection 是否存在
-        if db_type == "Qdrant" and self.qdrant_mode == "remote":
+        if db_type == "Qdrant" and self.qdrant_settings.is_remote:
             if not self._collection_exists():
                 logger.warning(f"Remote Qdrant collection '{self.collection_name}' 不存在，準備建立索引...")
                 vs = self._build_index(db_type)
             else:
-                logger.info(f"載入現有 Qdrant 向量資料庫 (remote: {self.qdrant_host}:{self.qdrant_port})")
+                logger.info(f"載入現有 Qdrant 向量資料庫 (remote: {self.qdrant_settings.url})")
                 sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
                 vs = QdrantVectorStore.from_existing_collection(
                     embedding=self.embeddings,
                     sparse_embedding=sparse_embeddings,
-                    url=f"http://{self.qdrant_host}:{self.qdrant_port}",
+                    url=self.qdrant_settings.url,
                     collection_name=self.collection_name,
                     retrieval_mode=RetrievalMode.HYBRID,
                 )
@@ -452,13 +454,13 @@ class RustProjectAssistant:
             logger.info(f"載入現有 {db_type} 向量資料庫")
             vs = Chroma(persist_directory=path, embedding_function=self.embeddings)
         else:
-            logger.info(f"載入現有 {db_type} 向量資料庫 (mode={self.qdrant_mode})")
+            logger.info(f"載入現有 {db_type} 向量資料庫 (mode={self.qdrant_settings.mode.value})")
             sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
-            if self.qdrant_mode == "remote":
+            if self.qdrant_settings.is_remote:
                 vs = QdrantVectorStore.from_existing_collection(
                     embedding=self.embeddings,
                     sparse_embedding=sparse_embeddings,
-                    url=f"http://{self.qdrant_host}:{self.qdrant_port}",
+                    url=self.qdrant_settings.url,
                     collection_name=self.collection_name,
                     retrieval_mode=RetrievalMode.HYBRID,
                 )
@@ -497,7 +499,9 @@ class RustProjectAssistant:
         # 處理 Rust 檔案
         logger.info("正在處理 Rust 檔案 (.rs)")
         rs_splitter = RecursiveCharacterTextSplitter.from_language(
-            language=Language.RUST, chunk_size=1000, chunk_overlap=100
+            language=Language.RUST,
+            chunk_size=self.runtime_settings.rust_chunk_size,
+            chunk_overlap=self.runtime_settings.rust_chunk_overlap,
         )
         filtered_rs = load_and_filter("**/*.rs")
         rs_docs = rs_splitter.split_documents(filtered_rs)
@@ -510,7 +514,10 @@ class RustProjectAssistant:
 
         # 處理 Markdown 檔案
         logger.info("正在處理 Markdown 檔案 (.md)")
-        md_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=80)
+        md_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=self.runtime_settings.markdown_chunk_size,
+            chunk_overlap=self.runtime_settings.markdown_chunk_overlap,
+        )
         md_docs = md_splitter.split_documents(load_and_filter("**/*.md"))
         all_docs.extend(md_docs)
         logger.info(f"Markdown 檔案處理完成: {len(md_docs)} 片段")
@@ -520,12 +527,12 @@ class RustProjectAssistant:
             vs = Chroma.from_documents(all_docs, self.embeddings, persist_directory=path)
         else:
             sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
-            if self.qdrant_mode == "remote":
+            if self.qdrant_settings.is_remote:
                 vs = QdrantVectorStore.from_documents(
                     all_docs,
                     embedding=self.embeddings,
                     sparse_embedding=sparse_embeddings,
-                    url=f"http://{self.qdrant_host}:{self.qdrant_port}",
+                    url=self.qdrant_settings.url,
                     collection_name=self.collection_name,
                     retrieval_mode=RetrievalMode.HYBRID,
                 )
@@ -553,14 +560,14 @@ class RustProjectAssistant:
                 for metadata in data['metadatas']:
                     sources.add(metadata.get('source', 'unknown'))
             else:
-                if self.qdrant_mode == "remote":
-                    client = QdrantClient(url=f"http://{self.qdrant_host}:{self.qdrant_port}")
+                if self.qdrant_settings.is_remote:
+                    client = QdrantClient(url=self.qdrant_settings.url)
                 else:
                     client = vs.client
                 points, _ = client.scroll(
                     collection_name=self.collection_name,
                     with_payload=True,
-                    limit=5000
+                    limit=self.runtime_settings.qdrant_scroll_limit,
                 )
                 for p in points:
                     metadata = p.payload.get('metadata', p.payload)
@@ -607,7 +614,7 @@ class RustProjectAssistant:
         prompt = ChatPromptTemplate.from_template(template)
 
         vs = self._get_vectorstore(db_type)
-        retriever = vs.as_retriever(search_kwargs={"k": 5})
+        retriever = vs.as_retriever(search_kwargs={"k": self.runtime_settings.retriever_k})
 
         logger.info(f"正在從 {db_type} 檢索相關片段...")
         context_docs = retriever.invoke(english_question)

@@ -1,4 +1,5 @@
 import os
+from enum import StrEnum
 from dataclasses import dataclass, field
 
 try:
@@ -12,6 +13,11 @@ def _env_flag(name: str, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+class QdrantMode(StrEnum):
+    LOCAL = "local"
+    REMOTE = "remote"
 
 
 @dataclass(frozen=True)
@@ -31,15 +37,37 @@ class ZhTwMcpSettings:
 
 @dataclass(frozen=True)
 class QdrantSettings:
-    mode: str = "local"
+    mode: QdrantMode = QdrantMode.LOCAL
     host: str = "localhost"
     port: int = 6333
     collection_name: str = "magic_pack"
+
+    @property
+    def is_remote(self) -> bool:
+        return self.mode == QdrantMode.REMOTE
+
+    @property
+    def url(self) -> str:
+        return f"http://{self.host}:{self.port}"
+
+
+@dataclass(frozen=True)
+class AssistantRuntimeSettings:
+    embedding_model_name: str = "all-MiniLM-L6-v2"
+    chat_model_name: str = "llama3"
+    chat_temperature: float = 0.0
+    rust_chunk_size: int = 1000
+    rust_chunk_overlap: int = 100
+    markdown_chunk_size: int = 800
+    markdown_chunk_overlap: int = 80
+    retriever_k: int = 5
+    qdrant_scroll_limit: int = 5000
 
 
 @dataclass(frozen=True)
 class AssistantSettings:
     project_path: str = "~/Repos/magic-pack"
+    runtime: AssistantRuntimeSettings = field(default_factory=AssistantRuntimeSettings)
     qdrant: QdrantSettings = field(default_factory=QdrantSettings)
     zhtw_mcp: ZhTwMcpSettings = field(default_factory=ZhTwMcpSettings)
 
@@ -50,8 +78,19 @@ def load_settings() -> AssistantSettings:
 
     return AssistantSettings(
         project_path=os.environ.get("PROJECT_PATH", "~/Repos/magic-pack"),
+        runtime=AssistantRuntimeSettings(
+            embedding_model_name=os.environ.get("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2"),
+            chat_model_name=os.environ.get("CHAT_MODEL_NAME", "llama3"),
+            chat_temperature=float(os.environ.get("CHAT_TEMPERATURE", "0")),
+            rust_chunk_size=int(os.environ.get("RUST_CHUNK_SIZE", "1000")),
+            rust_chunk_overlap=int(os.environ.get("RUST_CHUNK_OVERLAP", "100")),
+            markdown_chunk_size=int(os.environ.get("MARKDOWN_CHUNK_SIZE", "800")),
+            markdown_chunk_overlap=int(os.environ.get("MARKDOWN_CHUNK_OVERLAP", "80")),
+            retriever_k=int(os.environ.get("RETRIEVER_K", "5")),
+            qdrant_scroll_limit=int(os.environ.get("QDRANT_SCROLL_LIMIT", "5000")),
+        ),
         qdrant=QdrantSettings(
-            mode=os.environ.get("QDRANT_MODE", "local"),
+            mode=QdrantMode(os.environ.get("QDRANT_MODE", QdrantMode.LOCAL.value).strip().lower()),
             host=os.environ.get("QDRANT_HOST", "localhost"),
             port=int(os.environ.get("QDRANT_PORT", "6333")),
             collection_name=os.environ.get("QDRANT_COLLECTION", "magic_pack"),

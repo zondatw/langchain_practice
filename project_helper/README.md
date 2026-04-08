@@ -84,6 +84,15 @@ AI Says: 根據 README.md 文件，沒有明確提到 magic-pack 的作者有關
 可用 `.env` 變數：
 
 - `PROJECT_PATH="~/Repos/magic-pack"`
+- `EMBEDDING_MODEL_NAME="all-MiniLM-L6-v2"`
+- `CHAT_MODEL_NAME="llama3"`
+- `CHAT_TEMPERATURE="0"`
+- `RUST_CHUNK_SIZE="1000"`
+- `RUST_CHUNK_OVERLAP="100"`
+- `MARKDOWN_CHUNK_SIZE="800"`
+- `MARKDOWN_CHUNK_OVERLAP="80"`
+- `RETRIEVER_K="5"`
+- `QDRANT_SCROLL_LIMIT="5000"`
 - `ZHTW_MCP_ENABLED=1`
 - `ZHTW_MCP_DEBUG="0"`
 - `ZHTW_MCP_COMMAND="zhtw-mcp"`
@@ -95,7 +104,7 @@ AI Says: 根據 README.md 文件，沒有明確提到 magic-pack 的作者有關
 - `ZHTW_MCP_EXPLAIN="0"`
 - `ZHTW_MCP_MAX_ERRORS="0"`
 - `ZHTW_MCP_CLI_FALLBACK_ENABLED="1"`
-- `QDRANT_MODE="local"`
+- `QDRANT_MODE="local"` 或 `QDRANT_MODE="remote"`
 - `QDRANT_HOST="localhost"`
 - `QDRANT_PORT="6333"`
 - `QDRANT_COLLECTION="magic_pack"`

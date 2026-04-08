@@ -10,6 +10,7 @@ if __name__ == "__main__":
     settings = load_settings()
     assistant = RustProjectAssistant(
         project_path=settings.project_path,
+        runtime_settings=settings.runtime,
         qdrant_settings=settings.qdrant,
         zhtw_mcp_settings=settings.zhtw_mcp,
     )
