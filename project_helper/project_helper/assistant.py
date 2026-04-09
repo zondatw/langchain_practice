@@ -16,9 +16,9 @@ from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from qdrant_client import QdrantClient
 if __package__ in {None, ""}:
-    from settings import AssistantRuntimeSettings, QdrantSettings, ZhTwMcpSettings
+    from settings import AssistantRuntimeSettings, QdrantSettings, VectorDb, ZhTwMcpSettings
 else:
-    from .settings import AssistantRuntimeSettings, QdrantSettings, ZhTwMcpSettings
+    from .settings import AssistantRuntimeSettings, QdrantSettings, VectorDb, ZhTwMcpSettings
 
 logger = logging.getLogger("RustAssistant")
 
@@ -400,8 +400,8 @@ class RustProjectAssistant:
         )
         self.zhtw_post_processor = zhtw_post_processor or ZhTwMcpPostProcessor(settings=zhtw_mcp_settings)
         self.db_paths = {
-            "Chroma": "./chroma_db",
-            "Qdrant": "./qdrant_db"
+            VectorDb.CHROMA: self.runtime_settings.chroma_db_path,
+            VectorDb.QDRANT: self.runtime_settings.qdrant_db_path,
         }
         self.qdrant_settings = qdrant_settings or QdrantSettings()
         self.collection_name = self.qdrant_settings.collection_name
@@ -445,14 +445,21 @@ class RustProjectAssistant:
             kwargs["path"] = path
         return QdrantVectorStore.from_existing_collection(**kwargs)
 
-    def _get_vectorstore(self, db_type):
+    @staticmethod
+    def _normalize_db_type(db_type: VectorDb | str) -> VectorDb:
+        if isinstance(db_type, VectorDb):
+            return db_type
+        return VectorDb(db_type)
+
+    def _get_vectorstore(self, db_type: VectorDb | str):
+        db_type = self._normalize_db_type(db_type)
         if db_type in self._vs_cache:
             return self._vs_cache[db_type]
 
         path = self.db_paths[db_type]
 
         # remote 模式：檢查 collection 是否存在
-        if db_type == "Qdrant" and self.qdrant_settings.is_remote:
+        if db_type == VectorDb.QDRANT and self.qdrant_settings.is_remote:
             if not self._collection_exists():
                 logger.warning(f"Remote Qdrant collection '{self.collection_name}' 不存在，準備建立索引...")
                 vs = self._build_index(db_type)
@@ -465,7 +472,7 @@ class RustProjectAssistant:
         if not self._has_persisted_index(path):
             logger.warning(f"{db_type} 索引不存在或為空，準備觸發重新索引...")
             vs = self._build_index(db_type)
-        elif db_type == "Chroma":
+        elif db_type == VectorDb.CHROMA:
             logger.info(f"載入現有 {db_type} 向量資料庫")
             vs = self._load_chroma_vectorstore(path)
         else:
@@ -478,7 +485,8 @@ class RustProjectAssistant:
         self._vs_cache[db_type] = vs
         return vs
 
-    def _build_index(self, db_type):
+    def _build_index(self, db_type: VectorDb | str):
+        db_type = self._normalize_db_type(db_type)
         logger.info(f"開始為 {db_type} 建立新索引 (3.13 相容模式)")
         all_docs = []
 
@@ -525,7 +533,7 @@ class RustProjectAssistant:
         logger.info(f"Markdown 檔案處理完成: {len(md_docs)} 片段")
 
         path = self.db_paths[db_type]
-        if db_type == "Chroma":
+        if db_type == VectorDb.CHROMA:
             vs = Chroma.from_documents(all_docs, self.embeddings, persist_directory=path)
         else:
             sparse_embeddings = self._create_sparse_embeddings()
@@ -552,12 +560,13 @@ class RustProjectAssistant:
         logger.info(f"{db_type} 索引建立成功並持久化至 {path}")
         return vs
 
-    def get_indexed_files(self, db_type="Chroma"):
+    def get_indexed_files(self, db_type: VectorDb | str = VectorDb.CHROMA):
+        db_type = self._normalize_db_type(db_type)
         try:
             vs = self._get_vectorstore(db_type)
             sources = set()
 
-            if db_type == "Chroma":
+            if db_type == VectorDb.CHROMA:
                 data = vs.get()
                 for metadata in data['metadatas']:
                     sources.add(metadata.get('source', 'unknown'))
@@ -596,7 +605,8 @@ class RustProjectAssistant:
         logger.info(f"翻譯完成: {translated} (tokens: prompt={p}, completion={c})")
         return translated
 
-    def ask(self, question: str, db_type="Chroma"):
+    def ask(self, question: str, db_type: VectorDb | str = VectorDb.CHROMA):
+        db_type = self._normalize_db_type(db_type)
         english_question = self._translate_to_english(question)
 
         template = """
@@ -666,7 +676,7 @@ class RustProjectAssistant:
         """主動釋放 vectorstore 資源，避免 Python 關閉時的 __del__ 警告"""
         for db_type, vs in self._vs_cache.items():
             try:
-                if db_type == "Qdrant":
+                if db_type == VectorDb.QDRANT:
                     client = getattr(vs, "client", None)
                     close = getattr(client, "close", None)
                     if callable(close):

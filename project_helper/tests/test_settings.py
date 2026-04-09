@@ -14,6 +14,8 @@ class LoadSettingsTest(unittest.TestCase):
             "SPARSE_EMBEDDING_MODEL_NAME": "demo-sparse",
             "CHAT_MODEL_NAME": "demo-chat",
             "CHAT_TEMPERATURE": "0.7",
+            "CHROMA_DB_PATH": "/tmp/chroma-demo",
+            "QDRANT_DB_PATH": "/tmp/qdrant-demo",
             "RUST_CHUNK_SIZE": "111",
             "RUST_CHUNK_OVERLAP": "22",
             "MARKDOWN_CHUNK_SIZE": "333",
@@ -46,6 +48,8 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.runtime.sparse_embedding_model_name, "demo-sparse")
         self.assertEqual(settings.runtime.chat_model_name, "demo-chat")
         self.assertEqual(settings.runtime.chat_temperature, 0.7)
+        self.assertEqual(settings.runtime.chroma_db_path, "/tmp/chroma-demo")
+        self.assertEqual(settings.runtime.qdrant_db_path, "/tmp/qdrant-demo")
         self.assertEqual(settings.runtime.rust_chunk_size, 111)
         self.assertEqual(settings.runtime.rust_chunk_overlap, 22)
         self.assertEqual(settings.runtime.markdown_chunk_size, 333)
@@ -78,6 +82,8 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertFalse(settings.qdrant.is_remote)
         self.assertEqual(settings.qdrant.url, "http://localhost:6333")
         self.assertEqual(settings.runtime.sparse_embedding_model_name, "Prithivida/Splade_PP_en_v1")
+        self.assertEqual(settings.runtime.chroma_db_path, "./chroma_db")
+        self.assertEqual(settings.runtime.qdrant_db_path, "./qdrant_db")
         self.assertEqual(settings.runtime.retriever_k, 5)
         self.assertTrue(settings.zhtw_mcp.enabled)
         self.assertTrue(settings.zhtw_mcp.cli_fallback_enabled)

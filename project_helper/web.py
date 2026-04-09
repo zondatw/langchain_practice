@@ -4,7 +4,7 @@ import os
 from project_helper.assistant import RustProjectAssistant
 from project_helper.logging_utils import configure_logging
 from project_helper.metrics import MetricsServer, instrument_assistant
-from project_helper.settings import load_settings
+from project_helper.settings import VectorDb, load_settings
 
 SERVER_NAME = "0.0.0.0"
 SERVER_PORT = 7860
@@ -15,6 +15,7 @@ METRICS_URL = f"http://localhost:{METRICS_PORT}/metrics"
 
 
 def create_gr(assistant: RustProjectAssistant):
+    db_choices = [db.value for db in VectorDb]
 
     def chat_response(message, history, db_type):
         return assistant.ask(message, db_type=db_type)
@@ -40,8 +41,8 @@ def create_gr(assistant: RustProjectAssistant):
         with gr.Row():
             with gr.Column(scale=3):
                 db_selector = gr.Radio(
-                    choices=["Chroma", "Qdrant"],
-                    value="Chroma",
+                    choices=db_choices,
+                    value=VectorDb.CHROMA.value,
                     label="選擇向量資料庫 (Vector DB)"
                 )
 
@@ -49,16 +50,16 @@ def create_gr(assistant: RustProjectAssistant):
                     fn=chat_response,
                     additional_inputs=[db_selector],
                     examples=[
-                        ["如何安裝這個專案？", "Chroma"],
-                        ["這個專案的核心功能是什麼？", "Chroma"],
-                        ["如何處理壓縮邏輯？", "Qdrant"],
-                        ["解釋 magic-pack 的錯誤處理機制", "Chroma"]
+                        ["如何安裝這個專案？", VectorDb.CHROMA.value],
+                        ["這個專案的核心功能是什麼？", VectorDb.CHROMA.value],
+                        ["如何處理壓縮邏輯？", VectorDb.QDRANT.value],
+                        ["解釋 magic-pack 的錯誤處理機制", VectorDb.CHROMA.value]
                     ],
                 )
 
             with gr.Column(scale=1):
                 gr.Markdown("### 📂 數據源資訊")
-                initial_files = assistant.get_indexed_files("Chroma")
+                initial_files = assistant.get_indexed_files(VectorDb.CHROMA)
                 file_list_display = gr.Markdown(
                     "\n".join([f"- `{os.path.basename(f)}`" for f in initial_files])
                     if initial_files else "*掃描中...*"
@@ -66,7 +67,7 @@ def create_gr(assistant: RustProjectAssistant):
 
                 gr.Markdown("---")
                 gr.Markdown("### ⚙️ 引擎狀態")
-                status_md = gr.Markdown("**當前:** `Chroma` (預設)")
+                status_md = gr.Markdown(f"**當前:** `{VectorDb.CHROMA.value}` (預設)")
 
                 db_selector.change(
                     update_ui_status,

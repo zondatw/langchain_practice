@@ -20,6 +20,11 @@ class QdrantMode(StrEnum):
     REMOTE = "remote"
 
 
+class VectorDb(StrEnum):
+    CHROMA = "Chroma"
+    QDRANT = "Qdrant"
+
+
 @dataclass(frozen=True)
 class ZhTwMcpSettings:
     enabled: bool = True
@@ -57,6 +62,8 @@ class AssistantRuntimeSettings:
     sparse_embedding_model_name: str = "Prithivida/Splade_PP_en_v1"
     chat_model_name: str = "llama3"
     chat_temperature: float = 0.0
+    chroma_db_path: str = "./chroma_db"
+    qdrant_db_path: str = "./qdrant_db"
     rust_chunk_size: int = 1000
     rust_chunk_overlap: int = 100
     markdown_chunk_size: int = 800
@@ -87,6 +94,8 @@ def load_settings() -> AssistantSettings:
             ),
             chat_model_name=os.environ.get("CHAT_MODEL_NAME", "llama3"),
             chat_temperature=float(os.environ.get("CHAT_TEMPERATURE", "0")),
+            chroma_db_path=os.environ.get("CHROMA_DB_PATH", "./chroma_db"),
+            qdrant_db_path=os.environ.get("QDRANT_DB_PATH", "./qdrant_db"),
             rust_chunk_size=int(os.environ.get("RUST_CHUNK_SIZE", "1000")),
             rust_chunk_overlap=int(os.environ.get("RUST_CHUNK_OVERLAP", "100")),
             markdown_chunk_size=int(os.environ.get("MARKDOWN_CHUNK_SIZE", "800")),

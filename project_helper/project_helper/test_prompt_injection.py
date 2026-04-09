@@ -10,11 +10,11 @@ from pathlib import Path
 if __package__ in {None, ""}:
     from assistant import RustProjectAssistant
     from logging_utils import configure_logging
-    from settings import load_settings
+    from settings import VectorDb, load_settings
 else:
     from .assistant import RustProjectAssistant
     from .logging_utils import configure_logging
-    from .settings import load_settings
+    from .settings import VectorDb, load_settings
 
 # ─────────────────────────────────────────────
 # 測試定義
@@ -92,7 +92,11 @@ INJECTION_TESTS = [
 # 執行測試
 # ─────────────────────────────────────────────
 
-def run_injection_test(assistant: RustProjectAssistant, test: dict, db_type: str = "Qdrant") -> dict:
+def run_injection_test(
+    assistant: RustProjectAssistant,
+    test: dict,
+    db_type: VectorDb | str = VectorDb.QDRANT,
+) -> dict:
     from langchain_core.documents import Document
 
     GREEN = "\033[92m"
@@ -436,9 +440,10 @@ def main() -> None:
     configure_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument("--label", default="", help="版本標籤，例如 'before-fix' 或 'v2-prompt'")
-    parser.add_argument("--db", default="Qdrant", help="Chroma 或 Qdrant")
+    parser.add_argument("--db", default=VectorDb.QDRANT.value, choices=[db.value for db in VectorDb], help="Chroma 或 Qdrant")
     parser.add_argument("--report", default=".test_result/injection_report.html", help="輸出 HTML 路徑")
     args = parser.parse_args()
+    db_type = VectorDb(args.db)
 
     label = args.label or datetime.datetime.now().strftime("run-%m%d-%H%M")
 
@@ -455,7 +460,7 @@ def main() -> None:
         zhtw_mcp_settings=settings.zhtw_mcp,
     ) as assistant:
         print(f"{BOLD}🔐 Prompt Injection 測試開始 [{label}]{RESET}")
-        results = [run_injection_test(assistant, t, db_type=args.db) for t in INJECTION_TESTS]
+        results = [run_injection_test(assistant, t, db_type=db_type) for t in INJECTION_TESTS]
 
     passed = sum(1 for r in results if r["passed"])
     total = len(results)

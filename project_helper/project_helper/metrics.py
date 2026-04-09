@@ -194,6 +194,7 @@ def _patch_ask(assistant) -> None:
     @wraps(original)
     def patched(self, question: str, db_type: str = "Chroma") -> str:
         start = time.perf_counter()
+        db_label = getattr(db_type, "value", db_type)
         try:
             result = original(self, question, db_type=db_type)
 
@@ -207,14 +208,14 @@ def _patch_ask(assistant) -> None:
             _metrics.set_gauge("rust_assistant_tokens_translate_prompt",     usage["translate"]["prompt"])
             _metrics.set_gauge("rust_assistant_tokens_translate_completion",  usage["translate"]["completion"])
 
-            _metrics.inc("rust_assistant_requests_total", labels={"operation": "ask", "status": "success", "db": db_type})
+            _metrics.inc("rust_assistant_requests_total", labels={"operation": "ask", "status": "success", "db": db_label})
             return result
         except Exception as e:
-            _metrics.inc("rust_assistant_requests_total", labels={"operation": "ask", "status": "error", "db": db_type})
+            _metrics.inc("rust_assistant_requests_total", labels={"operation": "ask", "status": "error", "db": db_label})
             _metrics.inc("rust_assistant_errors_total", labels={"operation": "ask", "error": type(e).__name__})
             raise
         finally:
             elapsed = time.perf_counter() - start
-            _metrics.observe("rust_assistant_latency_seconds", elapsed, labels={"operation": "ask", "db": db_type})
+            _metrics.observe("rust_assistant_latency_seconds", elapsed, labels={"operation": "ask", "db": db_label})
 
     assistant.ask = patched.__get__(assistant)

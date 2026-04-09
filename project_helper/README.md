@@ -100,6 +100,8 @@ AI Says: 根據 README.md 文件，沒有明確提到 magic-pack 的作者有關
 - `SPARSE_EMBEDDING_MODEL_NAME="Prithivida/Splade_PP_en_v1"`
 - `CHAT_MODEL_NAME="llama3"`
 - `CHAT_TEMPERATURE="0"`
+- `CHROMA_DB_PATH="./chroma_db"`
+- `QDRANT_DB_PATH="./qdrant_db"`
 - `RUST_CHUNK_SIZE="1000"`
 - `RUST_CHUNK_OVERLAP="100"`
 - `MARKDOWN_CHUNK_SIZE="800"`

@@ -4,7 +4,7 @@ import types
 import unittest
 from unittest import mock
 
-from project_helper.settings import QdrantMode, QdrantSettings, ZhTwMcpSettings
+from project_helper.settings import AssistantRuntimeSettings, QdrantMode, QdrantSettings, VectorDb, ZhTwMcpSettings
 
 
 def _stub_module(name: str, **attrs):
@@ -58,9 +58,14 @@ class AssistantModuleTestCase(unittest.TestCase):
         sys.modules.pop("project_helper.assistant", None)
         cls._module_patcher.stop()
 
-    def make_assistant(self, qdrant_settings: QdrantSettings | None = None):
+    def make_assistant(
+        self,
+        qdrant_settings: QdrantSettings | None = None,
+        runtime_settings: AssistantRuntimeSettings | None = None,
+    ):
         return self.RustProjectAssistant(
             project_path="/tmp/demo-project",
+            runtime_settings=runtime_settings,
             qdrant_settings=qdrant_settings,
             embeddings=mock.sentinel.embeddings,
             model=mock.sentinel.model,
@@ -117,9 +122,9 @@ class ZhTwMcpPostProcessorTest(AssistantModuleTestCase):
 class RustProjectAssistantVectorstoreTest(AssistantModuleTestCase):
     def test_get_vectorstore_returns_cached_instance(self):
         assistant = self.make_assistant()
-        assistant._vs_cache["Chroma"] = mock.sentinel.cached
+        assistant._vs_cache[VectorDb.CHROMA] = mock.sentinel.cached
 
-        result = assistant._get_vectorstore("Chroma")
+        result = assistant._get_vectorstore(VectorDb.CHROMA)
 
         self.assertIs(result, mock.sentinel.cached)
 
@@ -130,11 +135,11 @@ class RustProjectAssistantVectorstoreTest(AssistantModuleTestCase):
 
         with mock.patch.object(assistant, "_collection_exists", return_value=False), \
              mock.patch.object(assistant, "_build_index", return_value=mock.sentinel.built) as build_index:
-            result = assistant._get_vectorstore("Qdrant")
+            result = assistant._get_vectorstore(VectorDb.QDRANT)
 
         self.assertIs(result, mock.sentinel.built)
-        build_index.assert_called_once_with("Qdrant")
-        self.assertIs(assistant._vs_cache["Qdrant"], mock.sentinel.built)
+        build_index.assert_called_once_with(VectorDb.QDRANT)
+        self.assertIs(assistant._vs_cache[VectorDb.QDRANT], mock.sentinel.built)
 
     def test_get_vectorstore_loads_remote_qdrant_when_collection_exists(self):
         qdrant_settings = QdrantSettings(mode=QdrantMode.REMOTE, host="remote-host", port=7000)
@@ -142,44 +147,54 @@ class RustProjectAssistantVectorstoreTest(AssistantModuleTestCase):
 
         with mock.patch.object(assistant, "_collection_exists", return_value=True), \
              mock.patch.object(assistant, "_load_qdrant_vectorstore", return_value=mock.sentinel.remote_vs) as loader:
-            result = assistant._get_vectorstore("Qdrant")
+            result = assistant._get_vectorstore(VectorDb.QDRANT)
 
         self.assertIs(result, mock.sentinel.remote_vs)
         loader.assert_called_once_with(url=qdrant_settings.url)
-        self.assertIs(assistant._vs_cache["Qdrant"], mock.sentinel.remote_vs)
+        self.assertIs(assistant._vs_cache[VectorDb.QDRANT], mock.sentinel.remote_vs)
 
     def test_get_vectorstore_builds_index_when_local_store_missing(self):
         assistant = self.make_assistant()
 
         with mock.patch.object(assistant, "_has_persisted_index", return_value=False), \
              mock.patch.object(assistant, "_build_index", return_value=mock.sentinel.built) as build_index:
-            result = assistant._get_vectorstore("Chroma")
+            result = assistant._get_vectorstore(VectorDb.CHROMA)
 
         self.assertIs(result, mock.sentinel.built)
-        build_index.assert_called_once_with("Chroma")
-        self.assertIs(assistant._vs_cache["Chroma"], mock.sentinel.built)
+        build_index.assert_called_once_with(VectorDb.CHROMA)
+        self.assertIs(assistant._vs_cache[VectorDb.CHROMA], mock.sentinel.built)
 
     def test_get_vectorstore_loads_existing_chroma_store(self):
-        assistant = self.make_assistant()
+        runtime_settings = AssistantRuntimeSettings(chroma_db_path="/tmp/custom-chroma")
+        assistant = self.make_assistant(runtime_settings=runtime_settings)
 
         with mock.patch.object(assistant, "_has_persisted_index", return_value=True), \
              mock.patch.object(assistant, "_load_chroma_vectorstore", return_value=mock.sentinel.chroma_vs) as loader:
-            result = assistant._get_vectorstore("Chroma")
+            result = assistant._get_vectorstore(VectorDb.CHROMA)
 
         self.assertIs(result, mock.sentinel.chroma_vs)
-        loader.assert_called_once_with("./chroma_db")
-        self.assertIs(assistant._vs_cache["Chroma"], mock.sentinel.chroma_vs)
+        loader.assert_called_once_with("/tmp/custom-chroma")
+        self.assertIs(assistant._vs_cache[VectorDb.CHROMA], mock.sentinel.chroma_vs)
 
     def test_get_vectorstore_loads_existing_local_qdrant_store(self):
-        assistant = self.make_assistant()
+        runtime_settings = AssistantRuntimeSettings(qdrant_db_path="/tmp/custom-qdrant")
+        assistant = self.make_assistant(runtime_settings=runtime_settings)
 
         with mock.patch.object(assistant, "_has_persisted_index", return_value=True), \
              mock.patch.object(assistant, "_load_qdrant_vectorstore", return_value=mock.sentinel.qdrant_vs) as loader:
-            result = assistant._get_vectorstore("Qdrant")
+            result = assistant._get_vectorstore(VectorDb.QDRANT)
 
         self.assertIs(result, mock.sentinel.qdrant_vs)
-        loader.assert_called_once_with(path="./qdrant_db")
-        self.assertIs(assistant._vs_cache["Qdrant"], mock.sentinel.qdrant_vs)
+        loader.assert_called_once_with(path="/tmp/custom-qdrant")
+        self.assertIs(assistant._vs_cache[VectorDb.QDRANT], mock.sentinel.qdrant_vs)
+
+    def test_get_vectorstore_accepts_legacy_string_and_normalizes_to_enum(self):
+        assistant = self.make_assistant()
+        assistant._vs_cache[VectorDb.CHROMA] = mock.sentinel.cached
+
+        result = assistant._get_vectorstore("Chroma")
+
+        self.assertIs(result, mock.sentinel.cached)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@ import types
 import unittest
 from unittest import mock
 
+from project_helper.settings import VectorDb
+
 
 def _stub_module(name: str, **attrs):
     module = types.ModuleType(name)
@@ -60,6 +62,7 @@ class EntryPointSmokeTest(unittest.TestCase):
             ),
             "project_helper.settings": _stub_module(
                 "project_helper.settings",
+                VectorDb=VectorDb,
                 load_settings=load_settings,
             ),
             "project_helper.logging_utils": _stub_module(
