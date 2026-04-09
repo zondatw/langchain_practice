@@ -147,6 +147,12 @@ ZHTW_MCP_DEBUG=1 uv run main.py
 
 在 `project_helper/` 目錄下執行：
 
+unit test:
+
+`uv run python -m unittest discover -s tests -p 'test_*.py'`
+
+prompt injection test:
+
 `uv run python -m project_helper.test_prompt_injection --label "v4-prompt"`
 
 或使用 console script：
