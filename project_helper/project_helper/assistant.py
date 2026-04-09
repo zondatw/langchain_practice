@@ -20,15 +20,6 @@ if __package__ in {None, ""}:
 else:
     from .settings import AssistantRuntimeSettings, QdrantSettings, ZhTwMcpSettings
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
-
 logger = logging.getLogger("RustAssistant")
 
 
@@ -49,8 +40,7 @@ class ZhTwMcpPostProcessor:
         self.available = self.enabled and bool(self.command) and shutil.which(self.command[0]) is not None
 
         if self.debug_enabled:
-            logger.setLevel(logging.DEBUG)
-            logger.debug("ZHTW_MCP_DEBUG 已啟用，RustAssistant logger level=DEBUG")
+            logger.debug("ZHTW_MCP_DEBUG 已啟用，將輸出額外診斷資訊")
 
         if self.available:
             logger.info("zhtw-mcp 回答優化已啟用，command=%s", " ".join(self.command))
@@ -387,6 +377,7 @@ class ZhTwMcpPostProcessor:
         self._debug_text_preview(f"zhtw-mcp {source} before", before)
         self._debug_text_preview(f"zhtw-mcp {source} after", after)
 
+
 class RustProjectAssistant:
     def __init__(
         self,
@@ -435,7 +426,7 @@ class RustProjectAssistant:
         return os.path.exists(path) and bool(os.listdir(path))
 
     def _create_sparse_embeddings(self):
-        return FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
+        return FastEmbedSparse(model_name=self.runtime_settings.sparse_embedding_model_name)
 
     def _load_chroma_vectorstore(self, path: str):
         return Chroma(persist_directory=path, embedding_function=self.embeddings)
@@ -537,7 +528,7 @@ class RustProjectAssistant:
         if db_type == "Chroma":
             vs = Chroma.from_documents(all_docs, self.embeddings, persist_directory=path)
         else:
-            sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
+            sparse_embeddings = self._create_sparse_embeddings()
             if self.qdrant_settings.is_remote:
                 vs = QdrantVectorStore.from_documents(
                     all_docs,
@@ -676,10 +667,11 @@ class RustProjectAssistant:
         for db_type, vs in self._vs_cache.items():
             try:
                 if db_type == "Qdrant":
-                    client = vs.client
-                    client.close()
-                    client.__class__.__del__ = lambda self: None
-                    logger.debug(f"已關閉 {db_type} client")
+                    client = getattr(vs, "client", None)
+                    close = getattr(client, "close", None)
+                    if callable(close):
+                        close()
+                        logger.debug(f"已關閉 {db_type} client")
             except Exception:
                 pass
         self._vs_cache.clear()

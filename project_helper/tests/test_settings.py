@@ -11,6 +11,7 @@ class LoadSettingsTest(unittest.TestCase):
         env = {
             "PROJECT_PATH": "/tmp/demo-project",
             "EMBEDDING_MODEL_NAME": "demo-embedding",
+            "SPARSE_EMBEDDING_MODEL_NAME": "demo-sparse",
             "CHAT_MODEL_NAME": "demo-chat",
             "CHAT_TEMPERATURE": "0.7",
             "RUST_CHUNK_SIZE": "111",
@@ -42,6 +43,7 @@ class LoadSettingsTest(unittest.TestCase):
 
         self.assertEqual(settings.project_path, "/tmp/demo-project")
         self.assertEqual(settings.runtime.embedding_model_name, "demo-embedding")
+        self.assertEqual(settings.runtime.sparse_embedding_model_name, "demo-sparse")
         self.assertEqual(settings.runtime.chat_model_name, "demo-chat")
         self.assertEqual(settings.runtime.chat_temperature, 0.7)
         self.assertEqual(settings.runtime.rust_chunk_size, 111)
@@ -75,6 +77,7 @@ class LoadSettingsTest(unittest.TestCase):
         self.assertEqual(settings.qdrant.mode, QdrantMode.LOCAL)
         self.assertFalse(settings.qdrant.is_remote)
         self.assertEqual(settings.qdrant.url, "http://localhost:6333")
+        self.assertEqual(settings.runtime.sparse_embedding_model_name, "Prithivida/Splade_PP_en_v1")
         self.assertEqual(settings.runtime.retriever_k, 5)
         self.assertTrue(settings.zhtw_mcp.enabled)
         self.assertTrue(settings.zhtw_mcp.cli_fallback_enabled)

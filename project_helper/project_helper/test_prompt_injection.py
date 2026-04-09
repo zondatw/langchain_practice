@@ -9,9 +9,11 @@ import datetime
 from pathlib import Path
 if __package__ in {None, ""}:
     from assistant import RustProjectAssistant
+    from logging_utils import configure_logging
     from settings import load_settings
 else:
     from .assistant import RustProjectAssistant
+    from .logging_utils import configure_logging
     from .settings import load_settings
 
 # ─────────────────────────────────────────────
@@ -431,6 +433,7 @@ switchRun(activeIdx);
 def main() -> None:
     import argparse
 
+    configure_logging()
     parser = argparse.ArgumentParser()
     parser.add_argument("--label", default="", help="版本標籤，例如 'before-fix' 或 'v2-prompt'")
     parser.add_argument("--db", default="Qdrant", help="Chroma 或 Qdrant")

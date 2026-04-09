@@ -2,8 +2,16 @@ import gradio as gr
 import os
 
 from project_helper.assistant import RustProjectAssistant
+from project_helper.logging_utils import configure_logging
 from project_helper.metrics import MetricsServer, instrument_assistant
 from project_helper.settings import load_settings
+
+SERVER_NAME = "0.0.0.0"
+SERVER_PORT = 7860
+METRICS_HOST = "0.0.0.0"
+METRICS_PORT = 9090
+PROMETHEUS_URL = "http://localhost:9091"
+METRICS_URL = f"http://localhost:{METRICS_PORT}/metrics"
 
 
 def create_gr(assistant: RustProjectAssistant):
@@ -77,17 +85,15 @@ def create_gr(assistant: RustProjectAssistant):
                 gr.Markdown("---")
                 gr.Markdown(
                     "### 🔭 Metrics\n"
-                    "Prometheus: `http://localhost:9091`  \n"
-                    "Metrics: `http://localhost:9090/metrics`"
+                    f"Prometheus: `{PROMETHEUS_URL}`  \n"
+                    f"Metrics: `{METRICS_URL}`"
                 )
 
     return demo
 
 
 def main() -> None:
-    SERVER_NAME = "0.0.0.0"
-    SERVER_PORT = 7860
-    METRICS_PORT = 9090
+    configure_logging()
     settings = load_settings()
 
     print("--- 正在初始化後端助手 ---")
@@ -100,11 +106,17 @@ def main() -> None:
 
     print("--- 正在注入 Prometheus 監控 ---")
     instrument_assistant(assistant)
-    MetricsServer.start(port=METRICS_PORT)
+    MetricsServer.start(
+        port=METRICS_PORT,
+        host=METRICS_HOST,
+    )
 
     app = create_gr(assistant=assistant)
 
-    print(f"--- 正在啟動 Gradio 6.x 伺服器 (http://{SERVER_NAME}:{SERVER_PORT}) ---")
+    print(
+        "--- 正在啟動 Gradio 6.x 伺服器 "
+        f"(http://{SERVER_NAME}:{SERVER_PORT}) ---"
+    )
     app.launch(
         server_name=SERVER_NAME,
         server_port=SERVER_PORT,

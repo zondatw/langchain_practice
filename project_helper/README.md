@@ -97,6 +97,7 @@ AI Says: 根據 README.md 文件，沒有明確提到 magic-pack 的作者有關
 
 - `PROJECT_PATH="~/Repos/magic-pack"`
 - `EMBEDDING_MODEL_NAME="all-MiniLM-L6-v2"`
+- `SPARSE_EMBEDDING_MODEL_NAME="Prithivida/Splade_PP_en_v1"`
 - `CHAT_MODEL_NAME="llama3"`
 - `CHAT_TEMPERATURE="0"`
 - `RUST_CHUNK_SIZE="1000"`

@@ -107,6 +107,8 @@ class _SimpleMetrics:
 
 
 _metrics = _SimpleMetrics()
+DEFAULT_METRICS_HOST = "0.0.0.0"
+DEFAULT_METRICS_PORT = 9090
 
 # ─────────────────────────────────────────────
 # /metrics HTTP server
@@ -137,7 +139,7 @@ class MetricsServer:
     _server: HTTPServer = None
 
     @classmethod
-    def start(cls, port: int = 9090, host: str = "0.0.0.0"):
+    def start(cls, port: int = DEFAULT_METRICS_PORT, host: str = DEFAULT_METRICS_HOST):
         if cls._server is not None:
             return
         cls._server = HTTPServer((host, port), _MetricsHandler)

@@ -54,6 +54,7 @@ class QdrantSettings:
 @dataclass(frozen=True)
 class AssistantRuntimeSettings:
     embedding_model_name: str = "all-MiniLM-L6-v2"
+    sparse_embedding_model_name: str = "Prithivida/Splade_PP_en_v1"
     chat_model_name: str = "llama3"
     chat_temperature: float = 0.0
     rust_chunk_size: int = 1000
@@ -80,6 +81,10 @@ def load_settings() -> AssistantSettings:
         project_path=os.environ.get("PROJECT_PATH", "~/Repos/magic-pack"),
         runtime=AssistantRuntimeSettings(
             embedding_model_name=os.environ.get("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2"),
+            sparse_embedding_model_name=os.environ.get(
+                "SPARSE_EMBEDDING_MODEL_NAME",
+                "Prithivida/Splade_PP_en_v1",
+            ),
             chat_model_name=os.environ.get("CHAT_MODEL_NAME", "llama3"),
             chat_temperature=float(os.environ.get("CHAT_TEMPERATURE", "0")),
             rust_chunk_size=int(os.environ.get("RUST_CHUNK_SIZE", "1000")),
