@@ -11,14 +11,6 @@
 
 `uv run web.py`
 
-模組方式也可用：
-
-`uv run python -m project_helper.web_app`
-
-或使用 console script：
-
-`uv run project-helper-web`
-
 ![](../readme_pictures/project_helper_web.png)  
 
 token statistics  
