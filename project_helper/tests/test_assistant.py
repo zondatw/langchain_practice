@@ -49,13 +49,16 @@ class AssistantModuleTestCase(unittest.TestCase):
         )
         cls._module_patcher.start()
         sys.modules.pop("project_helper.assistant", None)
+        sys.modules.pop("project_helper.zhtw_mcp", None)
         cls.assistant_module = importlib.import_module("project_helper.assistant")
-        cls.ZhTwMcpPostProcessor = cls.assistant_module.ZhTwMcpPostProcessor
+        cls.mcp_module = importlib.import_module("project_helper.zhtw_mcp")
+        cls.ZhTwMcpPostProcessor = cls.mcp_module.ZhTwMcpPostProcessor
         cls.RustProjectAssistant = cls.assistant_module.RustProjectAssistant
 
     @classmethod
     def tearDownClass(cls):
         sys.modules.pop("project_helper.assistant", None)
+        sys.modules.pop("project_helper.zhtw_mcp", None)
         cls._module_patcher.stop()
 
     def make_assistant(
@@ -113,7 +116,7 @@ class ZhTwMcpPostProcessorTest(AssistantModuleTestCase):
     def test_cli_fallback_returns_original_when_stdout_empty(self):
         completed = mock.Mock(returncode=0, stdout="", stderr="")
 
-        with mock.patch("project_helper.assistant.subprocess.run", return_value=completed):
+        with mock.patch("project_helper.zhtw_mcp.subprocess.run", return_value=completed):
             text = self.processor._run_cli_fallback("original")
 
         self.assertEqual(text, "original")
