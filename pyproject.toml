@@ -28,7 +28,6 @@ build-backend = "hatchling.build"
 
 [project.scripts]
 project-helper = "project_helper.__main__:main"
-project-helper-pi-test = "project_helper.test_prompt_injection:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["project_helper/project_helper"]

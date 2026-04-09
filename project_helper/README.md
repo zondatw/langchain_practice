@@ -148,11 +148,7 @@ unit test:
 
 prompt injection test:
 
-`uv run python -m project_helper.test_prompt_injection --label "v4-prompt"`
-
-或使用 console script：
-
-`uv run project-helper-pi-test --label "v4-prompt"`
+`uv run python -m tests.prompt_injection --label "v4-prompt"`
 
 ![](../readme_pictures/pi_report.png)  
 
