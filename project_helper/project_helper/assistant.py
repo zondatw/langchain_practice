@@ -394,15 +394,20 @@ class RustProjectAssistant:
         runtime_settings: AssistantRuntimeSettings | None = None,
         qdrant_settings: QdrantSettings | None = None,
         zhtw_mcp_settings: ZhTwMcpSettings | None = None,
+        embeddings=None,
+        model=None,
+        zhtw_post_processor: ZhTwMcpPostProcessor | None = None,
     ):
         self.runtime_settings = runtime_settings or AssistantRuntimeSettings()
         self.project_path = os.path.abspath(os.path.expanduser(project_path))
-        self.embeddings = HuggingFaceEmbeddings(model_name=self.runtime_settings.embedding_model_name)
-        self.model = ChatOllama(
+        self.embeddings = embeddings or HuggingFaceEmbeddings(
+            model_name=self.runtime_settings.embedding_model_name,
+        )
+        self.model = model or ChatOllama(
             model=self.runtime_settings.chat_model_name,
             temperature=self.runtime_settings.chat_temperature,
         )
-        self.zhtw_post_processor = ZhTwMcpPostProcessor(settings=zhtw_mcp_settings)
+        self.zhtw_post_processor = zhtw_post_processor or ZhTwMcpPostProcessor(settings=zhtw_mcp_settings)
         self.db_paths = {
             "Chroma": "./chroma_db",
             "Qdrant": "./qdrant_db"
@@ -426,6 +431,29 @@ class RustProjectAssistant:
         except Exception:
             return False
 
+    def _has_persisted_index(self, path: str) -> bool:
+        return os.path.exists(path) and bool(os.listdir(path))
+
+    def _create_sparse_embeddings(self):
+        return FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
+
+    def _load_chroma_vectorstore(self, path: str):
+        return Chroma(persist_directory=path, embedding_function=self.embeddings)
+
+    def _load_qdrant_vectorstore(self, path: str | None = None, url: str | None = None):
+        sparse_embeddings = self._create_sparse_embeddings()
+        kwargs = {
+            "embedding": self.embeddings,
+            "sparse_embedding": sparse_embeddings,
+            "collection_name": self.collection_name,
+            "retrieval_mode": RetrievalMode.HYBRID,
+        }
+        if url is not None:
+            kwargs["url"] = url
+        else:
+            kwargs["path"] = path
+        return QdrantVectorStore.from_existing_collection(**kwargs)
+
     def _get_vectorstore(self, db_type):
         if db_type in self._vs_cache:
             return self._vs_cache[db_type]
@@ -439,42 +467,22 @@ class RustProjectAssistant:
                 vs = self._build_index(db_type)
             else:
                 logger.info(f"載入現有 Qdrant 向量資料庫 (remote: {self.qdrant_settings.url})")
-                sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
-                vs = QdrantVectorStore.from_existing_collection(
-                    embedding=self.embeddings,
-                    sparse_embedding=sparse_embeddings,
-                    url=self.qdrant_settings.url,
-                    collection_name=self.collection_name,
-                    retrieval_mode=RetrievalMode.HYBRID,
-                )
+                vs = self._load_qdrant_vectorstore(url=self.qdrant_settings.url)
             self._vs_cache[db_type] = vs
             return vs
 
-        if not os.path.exists(path) or not os.listdir(path):
+        if not self._has_persisted_index(path):
             logger.warning(f"{db_type} 索引不存在或為空，準備觸發重新索引...")
             vs = self._build_index(db_type)
         elif db_type == "Chroma":
             logger.info(f"載入現有 {db_type} 向量資料庫")
-            vs = Chroma(persist_directory=path, embedding_function=self.embeddings)
+            vs = self._load_chroma_vectorstore(path)
         else:
             logger.info(f"載入現有 {db_type} 向量資料庫 (mode={self.qdrant_settings.mode.value})")
-            sparse_embeddings = FastEmbedSparse(model_name="Prithivida/Splade_PP_en_v1")
             if self.qdrant_settings.is_remote:
-                vs = QdrantVectorStore.from_existing_collection(
-                    embedding=self.embeddings,
-                    sparse_embedding=sparse_embeddings,
-                    url=self.qdrant_settings.url,
-                    collection_name=self.collection_name,
-                    retrieval_mode=RetrievalMode.HYBRID,
-                )
+                vs = self._load_qdrant_vectorstore(url=self.qdrant_settings.url)
             else:
-                vs = QdrantVectorStore.from_existing_collection(
-                    embedding=self.embeddings,
-                    sparse_embedding=sparse_embeddings,
-                    path=path,
-                    collection_name=self.collection_name,
-                    retrieval_mode=RetrievalMode.HYBRID,
-                )
+                vs = self._load_qdrant_vectorstore(path=path)
 
         self._vs_cache[db_type] = vs
         return vs
